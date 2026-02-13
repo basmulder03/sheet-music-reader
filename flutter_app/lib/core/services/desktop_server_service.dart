@@ -19,9 +19,15 @@ class DesktopServerService extends ChangeNotifier {
   HttpServer? _server;
   MDnsClient? _mdnsClient;
   final List<WebSocketChannel> _wsConnections = [];
+  final Map<WebSocketChannel, Set<String>> _subscriptions = {}; // Track document subscriptions
+  final Map<WebSocketChannel, DateTime> _lastPingTime = {}; // Track ping times
   bool _isRunning = false;
   int _port = 8080;
   String? _serverAddress;
+  
+  // Message batching for WebSocket
+  final Map<WebSocketChannel, List<Map<String, dynamic>>> _pendingMessages = {};
+  Timer? _batchTimer;
   
   DesktopServerService(this._libraryService);
 
@@ -57,6 +63,9 @@ class DesktopServerService extends ChangeNotifier {
 
       _isRunning = true;
       
+      // Start message batching timer
+      _startBatchTimer();
+      
       if (kDebugMode) {
         print('Server running on http://$_serverAddress:$_port');
       }
@@ -78,11 +87,18 @@ class DesktopServerService extends ChangeNotifier {
     if (!_isRunning) return;
 
     try {
+      // Stop batch timer
+      _batchTimer?.cancel();
+      _batchTimer = null;
+      
       // Close all WebSocket connections
       for (final ws in _wsConnections) {
         await ws.sink.close();
       }
       _wsConnections.clear();
+      _subscriptions.clear();
+      _lastPingTime.clear();
+      _pendingMessages.clear();
 
       // Stop mDNS
       await _stopMdnsAdvertisement();
@@ -329,18 +345,26 @@ class DesktopServerService extends ChangeNotifier {
   void _handleWebSocketConnection(WebSocketChannel webSocket) {
     // Add to connections list
     _wsConnections.add(webSocket);
+    _subscriptions[webSocket] = {};
+    _lastPingTime[webSocket] = DateTime.now();
+    _pendingMessages[webSocket] = [];
     notifyListeners();
 
     if (kDebugMode) {
       print('WebSocket client connected. Total connections: ${_wsConnections.length}');
     }
 
-    // Send welcome message
-    webSocket.sink.add(json.encode({
+    // Send welcome message with server capabilities
+    _queueMessage(webSocket, {
       'type': 'welcome',
       'message': 'Connected to Sheet Music Reader Desktop',
       'serverTime': DateTime.now().toIso8601String(),
-    }));
+      'capabilities': {
+        'pagination': true,
+        'compression': false, // Can be enabled with gzip if needed
+        'batching': true,
+      },
+    });
 
     // Listen for incoming messages
     webSocket.stream.listen(
@@ -352,15 +376,14 @@ class DesktopServerService extends ChangeNotifier {
           if (kDebugMode) {
             print('Error parsing WebSocket message: $e');
           }
-          webSocket.sink.add(json.encode({
+          _queueMessage(webSocket, {
             'type': 'error',
             'message': 'Invalid message format',
-          }));
+          });
         }
       },
       onDone: () {
-        _wsConnections.remove(webSocket);
-        notifyListeners();
+        _cleanupWebSocketConnection(webSocket);
         if (kDebugMode) {
           print('WebSocket client disconnected. Total connections: ${_wsConnections.length}');
         }
@@ -369,50 +392,214 @@ class DesktopServerService extends ChangeNotifier {
         if (kDebugMode) {
           print('WebSocket error: $error');
         }
-        _wsConnections.remove(webSocket);
-        notifyListeners();
+        _cleanupWebSocketConnection(webSocket);
       },
     );
+  }
+
+  /// Cleanup WebSocket connection
+  void _cleanupWebSocketConnection(WebSocketChannel webSocket) {
+    _wsConnections.remove(webSocket);
+    _subscriptions.remove(webSocket);
+    _lastPingTime.remove(webSocket);
+    _pendingMessages.remove(webSocket);
+    notifyListeners();
   }
 
   /// Handle incoming WebSocket messages
   void _handleWebSocketMessage(WebSocketChannel webSocket, Map<String, dynamic> data) {
     final messageType = data['type'] as String?;
+    _lastPingTime[webSocket] = DateTime.now();
 
     switch (messageType) {
       case 'ping':
-        // Respond to ping with pong
-        webSocket.sink.add(json.encode({
+        // Respond to ping with pong (lightweight response)
+        _queueMessage(webSocket, {
           'type': 'pong',
           'timestamp': DateTime.now().toIso8601String(),
-        }));
+        });
         break;
 
       case 'subscribe':
-        // Client wants to subscribe to updates for a specific document
-        final documentId = data['documentId'] as String?;
-        if (documentId != null) {
-          webSocket.sink.add(json.encode({
+        // Client wants to subscribe to updates for specific documents
+        final documentIds = data['documentIds'] as List<dynamic>?;
+        if (documentIds != null) {
+          _subscriptions[webSocket]?.addAll(
+            documentIds.map((id) => id.toString()),
+          );
+          _queueMessage(webSocket, {
             'type': 'subscribed',
-            'documentId': documentId,
-          }));
+            'documentIds': documentIds,
+          });
+          
+          if (kDebugMode) {
+            print('Client subscribed to ${documentIds.length} documents');
+          }
+        }
+        break;
+
+      case 'unsubscribe':
+        // Client wants to unsubscribe from specific documents
+        final documentIds = data['documentIds'] as List<dynamic>?;
+        if (documentIds != null) {
+          for (final id in documentIds) {
+            _subscriptions[webSocket]?.remove(id.toString());
+          }
+          _queueMessage(webSocket, {
+            'type': 'unsubscribed',
+            'documentIds': documentIds,
+          });
         }
         break;
 
       case 'sync_request':
-        // Client requests full sync of library
-        final documents = _libraryService.documents;
-        webSocket.sink.add(json.encode({
-          'type': 'sync_response',
-          'documents': documents.map((d) => _documentToJson(d)).toList(),
-        }));
+        // Client requests sync - use pagination to reduce bandwidth
+        final page = data['page'] as int? ?? 0;
+        final pageSize = data['pageSize'] as int? ?? 20;
+        final includeMetadataOnly = data['metadataOnly'] as bool? ?? false;
+        
+        _handleSyncRequest(webSocket, page, pageSize, includeMetadataOnly);
+        break;
+
+      case 'document_metadata_request':
+        // Request only metadata for specific documents (lightweight)
+        final documentIds = data['documentIds'] as List<dynamic>?;
+        if (documentIds != null) {
+          _handleMetadataRequest(webSocket, documentIds.map((e) => e.toString()).toList());
+        }
         break;
 
       default:
-        webSocket.sink.add(json.encode({
+        _queueMessage(webSocket, {
           'type': 'error',
           'message': 'Unknown message type: $messageType',
+        });
+    }
+  }
+
+  /// Handle sync request with pagination
+  void _handleSyncRequest(
+    WebSocketChannel webSocket,
+    int page,
+    int pageSize,
+    bool metadataOnly,
+  ) async {
+    try {
+      final docs = await _libraryService._databaseService.getDocumentsPage(
+        page: page,
+        pageSize: pageSize,
+      );
+      final totalCount = await _libraryService._databaseService.getDocumentCount();
+      
+      final docData = docs.map((d) {
+        if (metadataOnly) {
+          // Send only lightweight metadata
+          return {
+            'id': d.id,
+            'title': d.title,
+            'composer': d.composer,
+            'modifiedAt': d.modifiedAt.toIso8601String(),
+          };
+        } else {
+          return _documentToJson(d);
+        }
+      }).toList();
+
+      _queueMessage(webSocket, {
+        'type': 'sync_response',
+        'documents': docData,
+        'page': page,
+        'pageSize': pageSize,
+        'totalCount': totalCount,
+        'hasMore': (page + 1) * pageSize < totalCount,
+        'metadataOnly': metadataOnly,
+      });
+      
+      if (kDebugMode) {
+        print('Sent sync response: page $page, ${docs.length} documents');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error handling sync request: $e');
+      }
+      _queueMessage(webSocket, {
+        'type': 'error',
+        'message': 'Failed to sync documents',
+      });
+    }
+  }
+
+  /// Handle metadata-only request for specific documents
+  void _handleMetadataRequest(WebSocketChannel webSocket, List<String> documentIds) {
+    final metadata = documentIds.map((id) {
+      final doc = _libraryService.documents.where((d) => d.id == id).firstOrNull;
+      if (doc != null) {
+        return {
+          'id': doc.id,
+          'title': doc.title,
+          'composer': doc.composer,
+          'modifiedAt': doc.modifiedAt.toIso8601String(),
+        };
+      }
+      return null;
+    }).whereType<Map<String, dynamic>>().toList();
+
+    _queueMessage(webSocket, {
+      'type': 'metadata_response',
+      'metadata': metadata,
+    });
+  }
+
+  /// Queue message for batching
+  void _queueMessage(WebSocketChannel webSocket, Map<String, dynamic> message) {
+    if (!_pendingMessages.containsKey(webSocket)) {
+      _pendingMessages[webSocket] = [];
+    }
+    _pendingMessages[webSocket]!.add(message);
+    
+    // For high-priority messages, flush immediately
+    if (message['type'] == 'pong' || message['type'] == 'error') {
+      _flushMessages(webSocket);
+    }
+  }
+
+  /// Start timer for batching messages
+  void _startBatchTimer() {
+    _batchTimer?.cancel();
+    _batchTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      _flushAllMessages();
+    });
+  }
+
+  /// Flush pending messages for a specific connection
+  void _flushMessages(WebSocketChannel webSocket) {
+    final pending = _pendingMessages[webSocket];
+    if (pending == null || pending.isEmpty) return;
+
+    try {
+      if (pending.length == 1) {
+        // Single message - send directly
+        webSocket.sink.add(json.encode(pending.first));
+      } else {
+        // Multiple messages - send as batch
+        webSocket.sink.add(json.encode({
+          'type': 'batch',
+          'messages': pending,
         }));
+      }
+      pending.clear();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error flushing messages: $e');
+      }
+      _cleanupWebSocketConnection(webSocket);
+    }
+  }
+
+  /// Flush all pending messages for all connections
+  void _flushAllMessages() {
+    for (final ws in _wsConnections.toList()) {
+      _flushMessages(ws);
     }
   }
 
@@ -522,14 +709,24 @@ class DesktopServerService extends ChangeNotifier {
     }
   }
 
-  /// Broadcast update to all WebSocket clients
+  /// Broadcast update to all WebSocket clients (with subscription filtering)
   void _broadcastUpdate(Map<String, dynamic> message) {
+    final documentId = message['documentId'] as String?;
     final data = json.encode(message);
     final closedConnections = <WebSocketChannel>[];
 
     for (final ws in _wsConnections) {
       try {
-        ws.sink.add(data);
+        // If document-specific update, only send to subscribed clients
+        if (documentId != null) {
+          final subscriptions = _subscriptions[ws];
+          if (subscriptions == null || !subscriptions.contains(documentId)) {
+            continue; // Skip this client
+          }
+        }
+        
+        // Queue message instead of sending immediately
+        _queueMessage(ws, message);
       } catch (e) {
         closedConnections.add(ws);
       }
@@ -537,12 +734,15 @@ class DesktopServerService extends ChangeNotifier {
 
     // Remove closed connections
     for (final ws in closedConnections) {
-      _wsConnections.remove(ws);
+      _cleanupWebSocketConnection(ws);
     }
 
     if (closedConnections.isNotEmpty) {
       notifyListeners();
     }
+    
+    // Flush messages immediately for broadcasts
+    _flushAllMessages();
   }
 
   /// Convert document to JSON

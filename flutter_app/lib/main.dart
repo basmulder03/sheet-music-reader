@@ -11,6 +11,8 @@ import 'core/services/musicxml_service.dart';
 import 'core/services/midi_playback_service.dart';
 import 'core/services/note_editing_service.dart';
 import 'core/services/desktop_server_service.dart';
+import 'core/services/image_cache_service.dart';
+import 'core/services/memory_manager_service.dart';
 import 'mobile/services/server_discovery_service.dart';
 import 'mobile/services/mobile_connection_service.dart';
 import 'desktop/screens/desktop_home_screen.dart';
@@ -19,6 +21,13 @@ import 'shared/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize image cache
+  await ImageCacheService.instance.initialize();
+  
+  // Start memory manager periodic cleanup
+  MemoryManagerService.instance.startPeriodicCleanup();
+  
   runApp(const SheetMusicReaderApp());
 }
 

@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart' show Color, Offset, Size;
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import '../models/sheet_music_document.dart';
 
@@ -94,8 +95,16 @@ class DatabaseService {
 
     // Indexes for performance
     await db.execute('CREATE INDEX idx_documents_modified ON $_documentsTable (modified_at DESC)');
+    await db.execute('CREATE INDEX idx_documents_title ON $_documentsTable (title COLLATE NOCASE)');
+    await db.execute('CREATE INDEX idx_documents_composer ON $_documentsTable (composer COLLATE NOCASE)');
+    await db.execute('CREATE INDEX idx_documents_created ON $_documentsTable (created_at DESC)');
     await db.execute('CREATE INDEX idx_annotations_document ON $_annotationsTable (document_id)');
+    await db.execute('CREATE INDEX idx_annotations_page ON $_annotationsTable (document_id, page)');
     await db.execute('CREATE INDEX idx_tags_document ON $_tagsTable (document_id)');
+    await db.execute('CREATE INDEX idx_tags_tag ON $_tagsTable (tag)');
+    
+    // Composite index for search queries
+    await db.execute('CREATE INDEX idx_documents_search ON $_documentsTable (title COLLATE NOCASE, composer COLLATE NOCASE, modified_at DESC)');
   }
 
   /// Handle database upgrades
@@ -213,65 +222,102 @@ class DatabaseService {
     ) ?? 0;
   }
 
-  /// Search documents by title, composer, or tags
+  /// Search documents by title, composer, or tags (optimized)
   Future<List<SheetMusicDocument>> searchDocuments(String query) async {
     final db = await database;
+    
+    if (query.isEmpty) {
+      return getAllDocuments();
+    }
+    
     final lowerQuery = '%${query.toLowerCase()}%';
     
-    final results = await db.query(
-      _documentsTable,
-      where: 'LOWER(title) LIKE ? OR LOWER(composer) LIKE ? OR LOWER(arranger) LIKE ?',
-      whereArgs: [lowerQuery, lowerQuery, lowerQuery],
-      orderBy: 'modified_at DESC',
-    );
+    // Optimized query using indexed columns
+    final results = await db.rawQuery('''
+      SELECT DISTINCT d.*
+      FROM $_documentsTable d
+      LEFT JOIN $_tagsTable t ON d.id = t.document_id
+      WHERE LOWER(d.title) LIKE ?
+         OR LOWER(d.composer) LIKE ?
+         OR LOWER(d.arranger) LIKE ?
+         OR LOWER(t.tag) LIKE ?
+      ORDER BY d.modified_at DESC
+    ''', [lowerQuery, lowerQuery, lowerQuery, lowerQuery]);
 
     final documents = <SheetMusicDocument>[];
+    final seenIds = <String>{};
+    
     for (final docMap in results) {
-      final tags = await _getDocumentTags(docMap['id'] as String);
-      documents.add(_documentFromMap(docMap, tags));
+      final id = docMap['id'] as String;
+      if (!seenIds.contains(id)) {
+        seenIds.add(id);
+        final tags = await _getDocumentTags(id);
+        documents.add(_documentFromMap(docMap, tags));
+      }
     }
 
     return documents;
   }
 
-  /// Search documents with pagination
+  /// Search documents with pagination (optimized)
   Future<List<SheetMusicDocument>> searchDocumentsPage({
     required String query,
     required int page,
     required int pageSize,
   }) async {
     final db = await database;
+    
+    if (query.isEmpty) {
+      return getDocumentsPage(page: page, pageSize: pageSize);
+    }
+    
     final lowerQuery = '%${query.toLowerCase()}%';
     final offset = page * pageSize;
     
-    final results = await db.query(
-      _documentsTable,
-      where: 'LOWER(title) LIKE ? OR LOWER(composer) LIKE ? OR LOWER(arranger) LIKE ?',
-      whereArgs: [lowerQuery, lowerQuery, lowerQuery],
-      orderBy: 'modified_at DESC',
-      limit: pageSize,
-      offset: offset,
-    );
+    // Optimized query with indexed columns and pagination
+    final results = await db.rawQuery('''
+      SELECT DISTINCT d.*
+      FROM $_documentsTable d
+      LEFT JOIN $_tagsTable t ON d.id = t.document_id
+      WHERE LOWER(d.title) LIKE ?
+         OR LOWER(d.composer) LIKE ?
+         OR LOWER(d.arranger) LIKE ?
+         OR LOWER(t.tag) LIKE ?
+      ORDER BY d.modified_at DESC
+      LIMIT ? OFFSET ?
+    ''', [lowerQuery, lowerQuery, lowerQuery, lowerQuery, pageSize, offset]);
 
     final documents = <SheetMusicDocument>[];
+    final seenIds = <String>{};
+    
     for (final docMap in results) {
-      final tags = await _getDocumentTags(docMap['id'] as String);
-      documents.add(_documentFromMap(docMap, tags));
+      final id = docMap['id'] as String;
+      if (!seenIds.contains(id)) {
+        seenIds.add(id);
+        final tags = await _getDocumentTags(id);
+        documents.add(_documentFromMap(docMap, tags));
+      }
     }
 
     return documents;
   }
 
-  /// Get search result count
+  /// Get search result count (optimized)
   Future<int> getSearchCount(String query) async {
     final db = await database;
+    
+    if (query.isEmpty) {
+      return getDocumentCount();
+    }
+    
     final lowerQuery = '%${query.toLowerCase()}%';
     
     return Sqflite.firstIntValue(
       await db.rawQuery(
-        'SELECT COUNT(*) FROM $_documentsTable '
-        'WHERE LOWER(title) LIKE ? OR LOWER(composer) LIKE ? OR LOWER(arranger) LIKE ?',
-        [lowerQuery, lowerQuery, lowerQuery],
+        'SELECT COUNT(DISTINCT d.id) FROM $_documentsTable d '
+        'LEFT JOIN $_tagsTable t ON d.id = t.document_id '
+        'WHERE LOWER(d.title) LIKE ? OR LOWER(d.composer) LIKE ? OR LOWER(d.arranger) LIKE ? OR LOWER(t.tag) LIKE ?',
+        [lowerQuery, lowerQuery, lowerQuery, lowerQuery],
       ),
     ) ?? 0;
   }
@@ -420,5 +466,60 @@ class DatabaseService {
       'documents': docCount,
       'annotations': annotationCount,
     };
+  }
+
+  /// Optimize database (run VACUUM and ANALYZE)
+  Future<void> optimizeDatabase() async {
+    try {
+      final db = await database;
+      
+      // ANALYZE updates statistics for query optimizer
+      await db.execute('ANALYZE');
+      
+      // VACUUM reclaims unused space and defragments
+      await db.execute('VACUUM');
+      
+      if (kDebugMode) {
+        print('[Database] Optimization complete');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Database] Error optimizing: $e');
+      }
+    }
+  }
+
+  /// Get database file size
+  Future<int> getDatabaseSize() async {
+    try {
+      final documentsDirectory = await getApplicationDocumentsDirectory();
+      final dbPath = path.join(documentsDirectory.path, 'sheet_music_reader', _databaseName);
+      final file = File(dbPath);
+      
+      if (await file.exists()) {
+        final stat = await file.stat();
+        return stat.size;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Database] Error getting size: $e');
+      }
+    }
+    return 0;
+  }
+
+  /// Check database integrity
+  Future<bool> checkIntegrity() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('PRAGMA integrity_check');
+      final status = result.first['integrity_check'] as String?;
+      return status == 'ok';
+    } catch (e) {
+      if (kDebugMode) {
+        print('[Database] Integrity check failed: $e');
+      }
+      return false;
+    }
   }
 }

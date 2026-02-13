@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/models/sheet_music_document.dart';
+import '../../core/services/network_request_optimizer.dart';
 import 'server_discovery_service.dart';
 
 /// Connection status
@@ -29,6 +30,9 @@ class MobileConnectionService extends ChangeNotifier {
   bool _hasMoreDocuments = true;
   bool _isLoadingMore = false;
   int? _totalDocumentCount;
+  
+  // Network optimizer for debouncing
+  final NetworkRequestOptimizer _optimizer = NetworkRequestOptimizer.instance;
 
   // Getters
   DiscoveredServer? get connectedServer => _connectedServer;
@@ -214,6 +218,13 @@ class MobileConnectionService extends ChangeNotifier {
         print('Error handling WebSocket message: $e');
       }
     }
+  }
+
+  /// Sync documents from server (loads first page) - debounced version
+  void syncDocumentsDebounced() {
+    _optimizer.debounce('sync_documents', () {
+      syncDocuments();
+    }, duration: const Duration(milliseconds: 500));
   }
 
   /// Sync documents from server (loads first page)
@@ -416,6 +427,13 @@ class MobileConnectionService extends ChangeNotifier {
       }
       return [];
     }
+  }
+
+  /// Refresh a specific document (debounced)
+  void refreshDocumentDebounced(String documentId) {
+    _optimizer.debounce('refresh_$documentId', () {
+      refreshDocument(documentId);
+    });
   }
 
   /// Refresh a specific document
