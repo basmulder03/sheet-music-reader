@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/sheet_music_document.dart';
 import '../../shared/widgets/theme_selector_dialog.dart';
+import '../../shared/widgets/mobile_storage_dialog.dart';
+import '../../shared/widgets/about_dialog.dart' as app_about;
+import '../widgets/mobile_sync_settings_dialog.dart';
 import '../services/server_discovery_service.dart';
 import '../services/mobile_connection_service.dart';
 import 'mobile_document_viewer_screen.dart';
@@ -756,7 +759,7 @@ class _ConnectViewState extends State<_ConnectView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.check_circle,
             size: 80,
             color: Colors.green,
@@ -1110,7 +1113,7 @@ class _SettingsView extends StatelessWidget {
             subtitle: const Text('Manage downloaded sheet music'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Show storage settings
+              MobileStorageDialog.show(context);
             },
           ),
           const Divider(),
@@ -1120,7 +1123,7 @@ class _SettingsView extends StatelessWidget {
             subtitle: const Text('Configure synchronization'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Show sync settings
+              MobileSyncSettingsDialog.show(context);
             },
           ),
           const Divider(),
@@ -1130,7 +1133,7 @@ class _SettingsView extends StatelessWidget {
             subtitle: const Text('Version and license information'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Show about page
+              app_about.AboutDialog.show(context);
             },
           ),
         ],
