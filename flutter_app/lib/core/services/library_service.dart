@@ -28,7 +28,25 @@ class LibraryService extends ChangeNotifier {
   }
 
   /// Update an existing document
-  Future<void> updateDocument(SheetMusicDocument document) async {
+  Future<void> updateDocument(
+    String documentId, {
+    DateTime? modifiedDate,
+  }) async {
+    final index = _documents.indexWhere((d) => d.id == documentId);
+    if (index != -1) {
+      _documents[index] = _documents[index].copyWith(
+        modifiedAt: modifiedDate ?? DateTime.now(),
+      );
+      _documents.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+      notifyListeners();
+      
+      // Persist to database
+      await _databaseService.updateDocument(_documents[index]);
+    }
+  }
+
+  /// Update an existing document with a full document object
+  Future<void> updateDocumentFull(SheetMusicDocument document) async {
     final index = _documents.indexWhere((d) => d.id == document.id);
     if (index != -1) {
       _documents[index] = document.copyWith(modifiedAt: DateTime.now());

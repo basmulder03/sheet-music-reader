@@ -9,6 +9,7 @@ import 'core/services/audiveris_service.dart';
 import 'core/services/file_import_service.dart';
 import 'core/services/musicxml_service.dart';
 import 'core/services/midi_playback_service.dart';
+import 'core/services/note_editing_service.dart';
 import 'desktop/screens/desktop_home_screen.dart';
 import 'mobile/screens/mobile_home_screen.dart';
 import 'shared/theme/app_theme.dart';
@@ -40,6 +41,7 @@ class SheetMusicReaderApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AudiverisService()),
         ChangeNotifierProvider(create: (_) => MusicXmlService()),
         ChangeNotifierProvider(create: (_) => MidiPlaybackService()),
+        ChangeNotifierProvider(create: (_) => NoteEditingService()),
         ChangeNotifierProxyProvider2<AudiverisService, LibraryService, FileImportService>(
           create: (context) => FileImportService(
             audiverisService: context.read<AudiverisService>(),

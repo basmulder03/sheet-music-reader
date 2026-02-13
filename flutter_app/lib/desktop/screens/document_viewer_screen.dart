@@ -6,6 +6,7 @@ import '../../core/services/musicxml_service.dart';
 import '../../core/services/midi_playback_service.dart';
 import '../widgets/musicxml_renderer.dart';
 import '../widgets/playback_controls.dart';
+import 'document_editor_screen.dart';
 import 'dart:io';
 
 /// Screen for viewing and editing sheet music documents
@@ -177,11 +178,11 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
   }
 
   void _editScore() {
-    // TODO: Open editing interface
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Editing not yet implemented'),
-        duration: Duration(seconds: 2),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => DocumentEditorScreen(
+          document: widget.document,
+        ),
       ),
     );
   }
