@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../core/models/sheet_music_document.dart';
 import '../../core/models/musicxml_model.dart';
 import '../../core/services/musicxml_service.dart';
+import '../../core/services/midi_playback_service.dart';
 import '../widgets/musicxml_renderer.dart';
+import '../widgets/playback_controls.dart';
 import 'dart:io';
 
 /// Screen for viewing and editing sheet music documents
@@ -54,6 +56,11 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
         _score = score;
         _isLoading = false;
       });
+      
+      // Load score into playback service
+      if (score != null && mounted) {
+        context.read<MidiPlaybackService>().loadScore(score);
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -101,11 +108,6 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
             tooltip: 'Zoom In',
           ),
           IconButton(
-            icon: const Icon(Icons.play_arrow),
-            onPressed: _score != null ? _playMusic : null,
-            tooltip: 'Play',
-          ),
-          IconButton(
             icon: const Icon(Icons.edit),
             onPressed: _score != null ? _editScore : null,
             tooltip: 'Edit',
@@ -113,6 +115,7 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
         ],
       ),
       body: _buildBody(),
+      bottomNavigationBar: _score != null ? const PlaybackControls() : null,
     );
   }
 
@@ -169,16 +172,6 @@ class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
       child: MusicXmlRenderer(
         score: _score!,
         zoom: _zoom,
-      ),
-    );
-  }
-
-  void _playMusic() {
-    // TODO: Implement MIDI playback
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Playback not yet implemented'),
-        duration: Duration(seconds: 2),
       ),
     );
   }
