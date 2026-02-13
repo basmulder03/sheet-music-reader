@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/services/library_service.dart';
 import '../../core/services/file_import_service.dart';
 import '../../core/models/sheet_music_document.dart';
+import '../widgets/server_controls.dart';
+import '../widgets/server_status.dart';
 import 'document_viewer_screen.dart';
 
 class DesktopHomeScreen extends StatefulWidget {
@@ -51,9 +53,9 @@ class _DesktopHomeScreenState extends State<DesktopHomeScreen> {
                 label: Text('Import'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.devices_outlined),
-                selectedIcon: Icon(Icons.devices),
-                label: Text('Devices'),
+                icon: Icon(Icons.dns_outlined),
+                selectedIcon: Icon(Icons.dns),
+                label: Text('Server'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
@@ -78,7 +80,7 @@ class _DesktopHomeScreenState extends State<DesktopHomeScreen> {
       case 1:
         return const _ImportView();
       case 2:
-        return const _DevicesView();
+        return const _ServerView();
       case 3:
         return const _SettingsView();
       default:
@@ -349,29 +351,23 @@ class _ImportView extends StatelessWidget {
   }
 }
 
-class _DevicesView extends StatelessWidget {
-  const _DevicesView();
+class _ServerView extends StatelessWidget {
+  const _ServerView();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.devices,
-            size: 64,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Connected Devices',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          const Text('No devices connected'),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Server',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 24),
+        const ServerControls(),
+        const SizedBox(height: 16),
+        const ServerStatus(),
+      ],
     );
   }
 }

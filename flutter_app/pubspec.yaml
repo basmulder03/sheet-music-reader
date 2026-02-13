@@ -22,6 +22,7 @@ dependencies:
   http: ^1.1.0
   shelf: ^1.4.1
   shelf_router: ^1.1.4
+  shelf_web_socket: ^1.0.4
   multicast_dns: ^0.3.2
   web_socket_channel: ^2.4.0
   

@@ -1,0 +1,544 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/material.dart' show Color, Offset, Size;
+import 'package:flutter/foundation.dart';
+import 'package:shelf/shelf.dart' as shelf;
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_router/shelf_router.dart';
+import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'package:multicast_dns/multicast_dns.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../models/sheet_music_document.dart';
+import 'library_service.dart';
+
+/// Service for running a local HTTP/WebSocket server for mobile device sync
+class DesktopServerService extends ChangeNotifier {
+  final LibraryService _libraryService;
+  
+  HttpServer? _server;
+  MDnsClient? _mdnsClient;
+  final List<WebSocketChannel> _wsConnections = [];
+  bool _isRunning = false;
+  int _port = 8080;
+  String? _serverAddress;
+  
+  DesktopServerService(this._libraryService);
+
+  // Getters
+  bool get isRunning => _isRunning;
+  int get port => _port;
+  String? get serverAddress => _serverAddress;
+  int get connectedClients => _wsConnections.length;
+
+  /// Start the server
+  Future<void> startServer() async {
+    if (_isRunning) return;
+
+    try {
+      // Get local IP address
+      _serverAddress = await _getLocalIpAddress();
+      
+      // Create and configure router
+      final router = _createRouter();
+      
+      // Add middleware
+      final handler = const shelf.Pipeline()
+          .addMiddleware(shelf.logRequests())
+          .addMiddleware(_corsMiddleware())
+          .addHandler(router.call);
+
+      // Start HTTP server
+      _server = await shelf_io.serve(
+        handler,
+        InternetAddress.anyIPv4,
+        _port,
+      );
+
+      _isRunning = true;
+      
+      if (kDebugMode) {
+        print('Server running on http://$_serverAddress:$_port');
+      }
+
+      // Start mDNS advertisement
+      await _startMdnsAdvertisement();
+      
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to start server: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Stop the server
+  Future<void> stopServer() async {
+    if (!_isRunning) return;
+
+    try {
+      // Close all WebSocket connections
+      for (final ws in _wsConnections) {
+        await ws.sink.close();
+      }
+      _wsConnections.clear();
+
+      // Stop mDNS
+      await _stopMdnsAdvertisement();
+
+      // Stop HTTP server
+      await _server?.close(force: true);
+      _server = null;
+
+      _isRunning = false;
+      _serverAddress = null;
+      
+      if (kDebugMode) {
+        print('Server stopped');
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error stopping server: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Create router with all API endpoints
+  Router _createRouter() {
+    final router = Router();
+
+    // Health check
+    router.get('/api/health', (shelf.Request request) {
+      return shelf.Response.ok(
+        json.encode({'status': 'ok', 'timestamp': DateTime.now().toIso8601String()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    // Get all documents
+    router.get('/api/documents', (shelf.Request request) async {
+      final documents = _libraryService.documents;
+      return shelf.Response.ok(
+        json.encode({
+          'documents': documents.map((d) => _documentToJson(d)).toList(),
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    // Get specific document
+    router.get('/api/documents/<id>', (shelf.Request request, String id) async {
+      final document = _libraryService.documents
+          .where((d) => d.id == id)
+          .firstOrNull;
+      
+      if (document == null) {
+        return shelf.Response.notFound(
+          json.encode({'error': 'Document not found'}),
+        );
+      }
+
+      return shelf.Response.ok(
+        json.encode(_documentToJson(document)),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    // Get document MusicXML file
+    router.get('/api/documents/<id>/musicxml', (shelf.Request request, String id) async {
+      final document = _libraryService.documents
+          .where((d) => d.id == id)
+          .firstOrNull;
+      
+      if (document == null) {
+        return shelf.Response.notFound(
+          json.encode({'error': 'Document not found'}),
+        );
+      }
+
+      try {
+        final file = File(document.musicXmlPath);
+        if (!await file.exists()) {
+          return shelf.Response.notFound(
+            json.encode({'error': 'MusicXML file not found'}),
+          );
+        }
+
+        final content = await file.readAsString();
+        return shelf.Response.ok(
+          content,
+          headers: {'Content-Type': 'application/xml'},
+        );
+      } catch (e) {
+        return shelf.Response.internalServerError(
+          body: json.encode({'error': 'Failed to read MusicXML file: $e'}),
+        );
+      }
+    });
+
+    // Get document annotations
+    router.get('/api/documents/<id>/annotations', (shelf.Request request, String id) async {
+      final annotations = _libraryService.getAnnotations(id);
+      return shelf.Response.ok(
+        json.encode({
+          'annotations': annotations.map((a) => _annotationToJson(a)).toList(),
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    // Add annotation
+    router.post('/api/documents/<id>/annotations', (shelf.Request request, String id) async {
+      try {
+        final payload = await request.readAsString();
+        final data = json.decode(payload) as Map<String, dynamic>;
+        
+        final annotation = Annotation(
+          id: data['id'] as String,
+          documentId: id,
+          page: data['page'] as int,
+          type: AnnotationType.values.firstWhere(
+            (e) => e.toString() == data['type'],
+            orElse: () => AnnotationType.note,
+          ),
+          text: data['text'] as String?,
+          color: data['color'] != null ? Color(data['color'] as int) : null,
+          position: Offset(
+            (data['position']['dx'] as num).toDouble(),
+            (data['position']['dy'] as num).toDouble(),
+          ),
+          size: data['size'] != null 
+              ? Size(
+                  (data['size']['width'] as num).toDouble(),
+                  (data['size']['height'] as num).toDouble(),
+                )
+              : null,
+          createdAt: DateTime.parse(data['createdAt'] as String),
+        );
+
+        await _libraryService.addAnnotation(id, annotation);
+        
+        // Broadcast to WebSocket clients
+        _broadcastUpdate({
+          'type': 'annotation_added',
+          'documentId': id,
+          'annotation': _annotationToJson(annotation),
+        });
+
+        return shelf.Response.ok(
+          json.encode({'success': true}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      } catch (e) {
+        return shelf.Response.internalServerError(
+          body: json.encode({'error': 'Failed to add annotation: $e'}),
+        );
+      }
+    });
+
+    // WebSocket endpoint for real-time sync
+    router.get('/ws', webSocketHandler((WebSocketChannel webSocket) {
+      _handleWebSocketConnection(webSocket);
+    }));
+
+    // Search documents
+    router.get('/api/search', (shelf.Request request) {
+      final query = request.url.queryParameters['q'] ?? '';
+      final results = _libraryService.search(query);
+      return shelf.Response.ok(
+        json.encode({
+          'results': results.map((d) => _documentToJson(d)).toList(),
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    // Get all tags
+    router.get('/api/tags', (shelf.Request request) {
+      final tags = _libraryService.getAllTags().toList();
+      return shelf.Response.ok(
+        json.encode({'tags': tags}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
+
+    return router;
+  }
+
+  /// Handle WebSocket connections
+  void _handleWebSocketConnection(WebSocketChannel webSocket) {
+    // Add to connections list
+    _wsConnections.add(webSocket);
+    notifyListeners();
+
+    if (kDebugMode) {
+      print('WebSocket client connected. Total connections: ${_wsConnections.length}');
+    }
+
+    // Send welcome message
+    webSocket.sink.add(json.encode({
+      'type': 'welcome',
+      'message': 'Connected to Sheet Music Reader Desktop',
+      'serverTime': DateTime.now().toIso8601String(),
+    }));
+
+    // Listen for incoming messages
+    webSocket.stream.listen(
+      (message) {
+        try {
+          final data = json.decode(message as String) as Map<String, dynamic>;
+          _handleWebSocketMessage(webSocket, data);
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error parsing WebSocket message: $e');
+          }
+          webSocket.sink.add(json.encode({
+            'type': 'error',
+            'message': 'Invalid message format',
+          }));
+        }
+      },
+      onDone: () {
+        _wsConnections.remove(webSocket);
+        notifyListeners();
+        if (kDebugMode) {
+          print('WebSocket client disconnected. Total connections: ${_wsConnections.length}');
+        }
+      },
+      onError: (error) {
+        if (kDebugMode) {
+          print('WebSocket error: $error');
+        }
+        _wsConnections.remove(webSocket);
+        notifyListeners();
+      },
+    );
+  }
+
+  /// Handle incoming WebSocket messages
+  void _handleWebSocketMessage(WebSocketChannel webSocket, Map<String, dynamic> data) {
+    final messageType = data['type'] as String?;
+
+    switch (messageType) {
+      case 'ping':
+        // Respond to ping with pong
+        webSocket.sink.add(json.encode({
+          'type': 'pong',
+          'timestamp': DateTime.now().toIso8601String(),
+        }));
+        break;
+
+      case 'subscribe':
+        // Client wants to subscribe to updates for a specific document
+        final documentId = data['documentId'] as String?;
+        if (documentId != null) {
+          webSocket.sink.add(json.encode({
+            'type': 'subscribed',
+            'documentId': documentId,
+          }));
+        }
+        break;
+
+      case 'sync_request':
+        // Client requests full sync of library
+        final documents = _libraryService.documents;
+        webSocket.sink.add(json.encode({
+          'type': 'sync_response',
+          'documents': documents.map((d) => _documentToJson(d)).toList(),
+        }));
+        break;
+
+      default:
+        webSocket.sink.add(json.encode({
+          'type': 'error',
+          'message': 'Unknown message type: $messageType',
+        }));
+    }
+  }
+
+  /// CORS middleware
+  shelf.Middleware _corsMiddleware() {
+    return shelf.createMiddleware(
+      requestHandler: (shelf.Request request) {
+        if (request.method == 'OPTIONS') {
+          return shelf.Response.ok('', headers: _corsHeaders);
+        }
+        return null;
+      },
+      responseHandler: (shelf.Response response) {
+        return response.change(headers: _corsHeaders);
+      },
+    );
+  }
+
+  final _corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+  };
+
+  /// Start mDNS advertisement
+  Future<void> _startMdnsAdvertisement() async {
+    try {
+      _mdnsClient = MDnsClient();
+      await _mdnsClient!.start();
+
+      // Note: The multicast_dns package has limited support for service registration.
+      // For full mDNS/Bonjour service advertisement, platform-specific implementations
+      // would be needed (Avahi on Linux, Bonjour on Windows/macOS).
+      // 
+      // For now, mobile clients can:
+      // 1. Use mDNS discovery to find the service type: _sheet-music-reader._tcp
+      // 2. Manually enter the server address shown in the UI
+      // 
+      // Service information that would be advertised:
+      // - Service Type: _sheet-music-reader._tcp
+      // - Port: $_port
+      // - TXT Records:
+      //   - version=0.1.0
+      //   - api=/api
+      //   - ws=/ws
+      
+      if (kDebugMode) {
+        print('mDNS client started');
+        print('Service: _sheet-music-reader._tcp.local');
+        print('Port: $_port');
+        print('For full service discovery, mobile clients should scan for $_serverAddress:$_port');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to start mDNS: $e');
+      }
+    }
+  }
+
+  /// Stop mDNS advertisement
+  Future<void> _stopMdnsAdvertisement() async {
+    try {
+      _mdnsClient?.stop();
+      _mdnsClient = null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error stopping mDNS: $e');
+      }
+    }
+  }
+
+  /// Get local IP address
+  Future<String> _getLocalIpAddress() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          // Skip loopback
+          if (addr.address == '127.0.0.1') continue;
+          // Prefer addresses starting with 192.168 or 10.
+          if (addr.address.startsWith('192.168') || 
+              addr.address.startsWith('10.')) {
+            return addr.address;
+          }
+        }
+      }
+
+      // Fallback to first non-loopback address
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          if (addr.address != '127.0.0.1') {
+            return addr.address;
+          }
+        }
+      }
+
+      return 'localhost';
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to get IP address: $e');
+      }
+      return 'localhost';
+    }
+  }
+
+  /// Broadcast update to all WebSocket clients
+  void _broadcastUpdate(Map<String, dynamic> message) {
+    final data = json.encode(message);
+    final closedConnections = <WebSocketChannel>[];
+
+    for (final ws in _wsConnections) {
+      try {
+        ws.sink.add(data);
+      } catch (e) {
+        closedConnections.add(ws);
+      }
+    }
+
+    // Remove closed connections
+    for (final ws in closedConnections) {
+      _wsConnections.remove(ws);
+    }
+
+    if (closedConnections.isNotEmpty) {
+      notifyListeners();
+    }
+  }
+
+  /// Convert document to JSON
+  Map<String, dynamic> _documentToJson(SheetMusicDocument doc) {
+    return {
+      'id': doc.id,
+      'title': doc.title,
+      'composer': doc.composer,
+      'arranger': doc.arranger,
+      'musicXmlPath': doc.musicXmlPath,
+      'sourcePath': doc.sourcePath,
+      'tags': doc.tags,
+      'metadata': {
+        'pageCount': doc.metadata.pageCount,
+        'timeSignature': doc.metadata.timeSignature,
+        'keySignature': doc.metadata.keySignature,
+        'tempo': doc.metadata.tempo,
+        'instruments': doc.metadata.instruments,
+        'measureCount': doc.metadata.measureCount,
+      },
+      'createdAt': doc.createdAt.toIso8601String(),
+      'modifiedAt': doc.modifiedAt.toIso8601String(),
+    };
+  }
+
+  /// Convert annotation to JSON
+  Map<String, dynamic> _annotationToJson(Annotation annotation) {
+    return {
+      'id': annotation.id,
+      'documentId': annotation.documentId,
+      'page': annotation.page,
+      'type': annotation.type.toString(),
+      'text': annotation.text,
+      'position': {
+        'dx': annotation.position.dx,
+        'dy': annotation.position.dy,
+      },
+      'size': annotation.size != null
+          ? {
+              'width': annotation.size!.width,
+              'height': annotation.size!.height,
+            }
+          : null,
+      // ignore: deprecated_member_use
+      'color': annotation.color?.value,
+      'createdAt': annotation.createdAt.toIso8601String(),
+    };
+  }
+
+  @override
+  void dispose() {
+    stopServer();
+    super.dispose();
+  }
+}
