@@ -387,6 +387,185 @@ class _DocumentListTile extends StatelessWidget {
 
   const _DocumentListTile({required this.document});
 
+  void _showOptionsMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with document info
+            Container(
+              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    document.title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (document.composer != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      document.composer!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // Menu options
+            ListTile(
+              leading: const Icon(Icons.open_in_new),
+              title: const Text('Open'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MobileDocumentViewerScreen(document: document),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Details'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showDetailsDialog(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('Share'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _shareDocument(context);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(
+                Icons.download,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(
+                'Download for Offline',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _downloadForOffline(context);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDetailsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Document Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow(label: 'Title', value: document.title),
+              if (document.composer != null)
+                _DetailRow(label: 'Composer', value: document.composer!),
+              if (document.arranger != null)
+                _DetailRow(label: 'Arranger', value: document.arranger!),
+              _DetailRow(
+                label: 'Pages',
+                value: document.metadata.pageCount.toString(),
+              ),
+              if (document.metadata.timeSignature != null)
+                _DetailRow(
+                  label: 'Time Signature',
+                  value: document.metadata.timeSignature!,
+                ),
+              if (document.metadata.keySignature != null)
+                _DetailRow(
+                  label: 'Key Signature',
+                  value: document.metadata.keySignature!,
+                ),
+              if (document.metadata.tempo != null)
+                _DetailRow(
+                  label: 'Tempo',
+                  value: '${document.metadata.tempo} BPM',
+                ),
+              if (document.metadata.measureCount != null)
+                _DetailRow(
+                  label: 'Measures',
+                  value: document.metadata.measureCount.toString(),
+                ),
+              if (document.tags.isNotEmpty)
+                _DetailRow(label: 'Tags', value: document.tags.join(', ')),
+              const SizedBox(height: 8),
+              _DetailRow(
+                label: 'Created',
+                value: _formatDate(document.createdAt),
+              ),
+              _DetailRow(
+                label: 'Modified',
+                value: _formatDate(document.modifiedAt),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareDocument(BuildContext context) {
+    // Show a snackbar indicating share functionality
+    // In a real app, this would use the share_plus package
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Share functionality coming soon'),
+      ),
+    );
+  }
+
+  void _downloadForOffline(BuildContext context) {
+    // Show a snackbar indicating download started
+    // In a real app, this would download the MusicXML and cache it locally
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Downloading "${document.title}" for offline use...'),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          onPressed: () {},
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -419,9 +598,7 @@ class _DocumentListTile extends StatelessWidget {
             : null,
         trailing: IconButton(
           icon: const Icon(Icons.more_vert),
-          onPressed: () {
-            // TODO: Show options menu
-          },
+          onPressed: () => _showOptionsMenu(context),
         ),
         onTap: () {
           Navigator.of(context).push(
@@ -430,6 +607,42 @@ class _DocumentListTile extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }

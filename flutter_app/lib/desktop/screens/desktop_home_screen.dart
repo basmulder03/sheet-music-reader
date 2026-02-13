@@ -6,6 +6,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/models/sheet_music_document.dart';
 import '../../shared/widgets/theme_selector_dialog.dart';
 import '../../shared/widgets/storage_location_dialog.dart';
+import '../../shared/widgets/server_settings_dialog.dart';
 import '../widgets/server_controls.dart';
 import '../widgets/server_status.dart';
 import 'document_viewer_screen.dart';
@@ -538,10 +539,14 @@ class _SettingsView extends StatelessWidget {
         const Divider(),
         ListTile(
           title: const Text('Server Settings'),
-          subtitle: const Text('Configure network server'),
+          subtitle: Consumer<SettingsService>(
+            builder: (context, settings, _) {
+              return Text('Port ${settings.serverPort}');
+            },
+          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            // TODO: Show server settings
+            ServerSettingsDialog.show(context);
           },
         ),
       ],

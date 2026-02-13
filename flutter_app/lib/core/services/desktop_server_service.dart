@@ -37,6 +37,17 @@ class DesktopServerService extends ChangeNotifier {
   String? get serverAddress => _serverAddress;
   int get connectedClients => _wsConnections.length;
 
+  /// Set the server port (only when server is not running)
+  void setPort(int port) {
+    if (_isRunning) {
+      throw StateError('Cannot change port while server is running');
+    }
+    if (port < 1024 || port > 65535) {
+      throw ArgumentError('Port must be between 1024 and 65535');
+    }
+    _port = port;
+  }
+
   /// Start the server
   Future<void> startServer() async {
     if (_isRunning) return;
@@ -54,12 +65,35 @@ class DesktopServerService extends ChangeNotifier {
           .addMiddleware(_corsMiddleware())
           .addHandler(router.call);
 
-      // Start HTTP server
-      _server = await shelf_io.serve(
-        handler,
-        InternetAddress.anyIPv4,
-        _port,
-      );
+      // Try to start HTTP server, with fallback ports if needed
+      HttpServer? server;
+      int portToUse = _port;
+      SocketException? lastError;
+      
+      // Try the configured port first, then try a few alternatives
+      for (int attempt = 0; attempt < 5; attempt++) {
+        try {
+          server = await shelf_io.serve(
+            handler,
+            InternetAddress.anyIPv4,
+            portToUse,
+          );
+          break; // Success!
+        } on SocketException catch (e) {
+          lastError = e;
+          if (kDebugMode) {
+            print('Port $portToUse is in use, trying next port...');
+          }
+          portToUse++;
+        }
+      }
+      
+      if (server == null) {
+        throw lastError ?? SocketException('Failed to bind to any port');
+      }
+      
+      _server = server;
+      _port = portToUse; // Update to the actual port used
 
       _isRunning = true;
       
