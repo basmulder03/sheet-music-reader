@@ -49,7 +49,7 @@ class _MobileDocumentViewerScreenState
       }
 
       final musicXmlService = context.read<MusicXmlService>();
-      final score = musicXmlService.parseMusicXml(musicXmlContent);
+      final score = await musicXmlService.parseMusicXml(musicXmlContent);
 
       setState(() {
         _score = score;

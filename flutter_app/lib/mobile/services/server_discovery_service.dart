@@ -77,7 +77,7 @@ class ServerDiscoveryService extends ChangeNotifier {
     _discoveryTimer = null;
 
     try {
-      await _mdnsClient?.stop();
+      _mdnsClient?.stop();
       _mdnsClient = null;
     } catch (e) {
       if (kDebugMode) {

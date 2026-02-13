@@ -23,6 +23,7 @@ class LibraryService extends ChangeNotifier {
   int? get totalDocumentCount => _totalDocumentCount;
   int get currentPage => _currentPage;
   int get pageSize => _pageSize;
+  DatabaseService get databaseService => _databaseService;
 
   /// Get annotations for a specific document
   List<Annotation> getAnnotations(String documentId) {

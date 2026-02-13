@@ -145,11 +145,11 @@ class DesktopServerService extends ChangeNotifier {
         final page = int.tryParse(pageParam) ?? 0;
         final pageSize = int.tryParse(pageSizeParam) ?? 20;
         
-        final documents = await _libraryService._databaseService.getDocumentsPage(
+        final documents = await _libraryService.databaseService.getDocumentsPage(
           page: page,
           pageSize: pageSize,
         );
-        final totalCount = await _libraryService._databaseService.getDocumentCount();
+        final totalCount = await _libraryService.databaseService.getDocumentCount();
         
         return shelf.Response.ok(
           json.encode({
@@ -300,12 +300,12 @@ class DesktopServerService extends ChangeNotifier {
         final page = int.tryParse(pageParam) ?? 0;
         final pageSize = int.tryParse(pageSizeParam) ?? 20;
         
-        final results = await _libraryService._databaseService.searchDocumentsPage(
+        final results = await _libraryService.databaseService.searchDocumentsPage(
           query: query,
           page: page,
           pageSize: pageSize,
         );
-        final totalCount = await _libraryService._databaseService.getSearchCount(query);
+        final totalCount = await _libraryService.databaseService.getSearchCount(query);
         
         return shelf.Response.ok(
           json.encode({
@@ -485,11 +485,11 @@ class DesktopServerService extends ChangeNotifier {
     bool metadataOnly,
   ) async {
     try {
-      final docs = await _libraryService._databaseService.getDocumentsPage(
+      final docs = await _libraryService.databaseService.getDocumentsPage(
         page: page,
         pageSize: pageSize,
       );
-      final totalCount = await _libraryService._databaseService.getDocumentCount();
+      final totalCount = await _libraryService.databaseService.getDocumentCount();
       
       final docData = docs.map((d) {
         if (metadataOnly) {

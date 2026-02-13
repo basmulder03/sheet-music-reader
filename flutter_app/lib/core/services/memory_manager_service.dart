@@ -191,8 +191,8 @@ class MemoryManagerService {
       size += part.measures.length * 200; // Per-measure overhead
 
       for (final measure in part.measures) {
-        // Notes
-        size += measure.notes.length * 100; // Per-note overhead
+        // Music elements (notes, rests, etc.)
+        size += measure.elements.length * 100; // Per-element overhead
         
         // Attributes
         if (measure.attributes != null) {
