@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/library_service.dart';
 import '../../core/services/file_import_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/models/sheet_music_document.dart';
 import '../../shared/widgets/theme_selector_dialog.dart';
+import '../../shared/widgets/storage_location_dialog.dart';
 import '../widgets/server_controls.dart';
 import '../widgets/server_status.dart';
 import 'document_viewer_screen.dart';
@@ -519,10 +521,18 @@ class _SettingsView extends StatelessWidget {
         ),
         ListTile(
           title: const Text('Storage Location'),
-          subtitle: const Text('Where to save sheet music files'),
+          subtitle: Consumer<SettingsService>(
+            builder: (context, settings, _) {
+              final path = settings.defaultStoragePath;
+              return Text(
+                path.isNotEmpty ? path : 'Default location',
+                overflow: TextOverflow.ellipsis,
+              );
+            },
+          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            // TODO: Show folder picker
+            StorageLocationDialog.show(context);
           },
         ),
         const Divider(),
