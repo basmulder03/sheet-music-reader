@@ -11,6 +11,8 @@ import 'core/services/musicxml_service.dart';
 import 'core/services/midi_playback_service.dart';
 import 'core/services/note_editing_service.dart';
 import 'core/services/desktop_server_service.dart';
+import 'mobile/services/server_discovery_service.dart';
+import 'mobile/services/mobile_connection_service.dart';
 import 'desktop/screens/desktop_home_screen.dart';
 import 'mobile/screens/mobile_home_screen.dart';
 import 'shared/theme/app_theme.dart';
@@ -43,6 +45,10 @@ class SheetMusicReaderApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => MusicXmlService()),
         ChangeNotifierProvider(create: (_) => MidiPlaybackService()),
         ChangeNotifierProvider(create: (_) => NoteEditingService()),
+        // Mobile services
+        ChangeNotifierProvider(create: (_) => ServerDiscoveryService()),
+        ChangeNotifierProvider(create: (_) => MobileConnectionService()),
+        // Desktop server service
         ChangeNotifierProxyProvider<LibraryService, DesktopServerService>(
           create: (context) => DesktopServerService(
             context.read<LibraryService>(),
