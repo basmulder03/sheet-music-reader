@@ -84,6 +84,11 @@ class _LibraryView extends StatefulWidget {
 
 class _LibraryViewState extends State<_LibraryView> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  String _searchQuery = '';
+  List<SheetMusicDocument> _searchResults = [];
+  bool _isSearchLoading = false;
 
   @override
   void initState() {
@@ -95,6 +100,7 @@ class _LibraryViewState extends State<_LibraryView> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -118,6 +124,39 @@ class _LibraryViewState extends State<_LibraryView> {
     }
   }
 
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearchLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchLoading = true;
+    });
+
+    final connectionService = context.read<MobileConnectionService>();
+    final results = await connectionService.search(query);
+
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isSearchLoading = false;
+      });
+    }
+  }
+
+  void _closeSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchQuery = '';
+      _searchController.clear();
+      _searchResults = [];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<MobileConnectionService>(
@@ -128,44 +167,85 @@ class _LibraryViewState extends State<_LibraryView> {
             controller: _scrollController,
             slivers: [
               SliverAppBar(
-                title: Row(
-                  children: [
-                    const Text('My Sheet Music'),
-                    if (connectionService.isConnected && 
-                        connectionService.totalDocumentCount != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0),
-                        child: Text(
-                          '(${connectionService.documents.length}/${connectionService.totalDocumentCount})',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                title: _isSearching
+                    ? TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: 'Search sheet music...',
+                          border: InputBorder.none,
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                      _searchResults = [];
+                                    });
+                                  },
+                                )
+                              : null,
                         ),
+                        style: Theme.of(context).textTheme.titleMedium,
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                          _performSearch(value);
+                        },
+                      )
+                    : Row(
+                        children: [
+                          const Text('My Sheet Music'),
+                          if (connectionService.isConnected && 
+                              connectionService.totalDocumentCount != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: Text(
+                                '(${connectionService.documents.length}/${connectionService.totalDocumentCount})',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
                 floating: true,
+                leading: _isSearching
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _closeSearch,
+                      )
+                    : null,
                 actions: [
-                  if (connectionService.isConnected)
+                  if (!_isSearching) ...[
+                    if (connectionService.isConnected)
+                      IconButton(
+                        icon: connectionService.isSyncing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh),
+                        onPressed: connectionService.isSyncing
+                            ? null
+                            : () => connectionService.syncDocuments(),
+                        tooltip: 'Sync with desktop',
+                      ),
                     IconButton(
-                      icon: connectionService.isSyncing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh),
-                      onPressed: connectionService.isSyncing
-                          ? null
-                          : () => connectionService.syncDocuments(),
-                      tooltip: 'Sync with desktop',
+                      icon: const Icon(Icons.search),
+                      onPressed: connectionService.isConnected
+                          ? () {
+                              setState(() {
+                                _isSearching = true;
+                              });
+                            }
+                          : null,
+                      tooltip: 'Search library',
                     ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () {
-                      // TODO: Implement search
-                    },
-                  ),
+                  ],
                 ],
               ),
               if (!connectionService.isConnected)
@@ -198,6 +278,50 @@ class _LibraryViewState extends State<_LibraryView> {
                           label: const Text('Connect Now'),
                         ),
                       ],
+                    ),
+                  ),
+                )
+              else if (_isSearching && _isSearchLoading)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_isSearching && _searchQuery.isNotEmpty && _searchResults.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No results found',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Try a different search term',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_isSearching && _searchResults.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final doc = _searchResults[index];
+                        return _DocumentListTile(document: doc);
+                      },
+                      childCount: _searchResults.length,
                     ),
                   ),
                 )

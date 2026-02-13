@@ -99,6 +99,9 @@ class _LibraryView extends StatefulWidget {
 
 class _LibraryViewState extends State<_LibraryView> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -110,6 +113,7 @@ class _LibraryViewState extends State<_LibraryView> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -132,56 +136,117 @@ class _LibraryViewState extends State<_LibraryView> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              const Text(
-                'Sheet Music Library',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 16),
-              Consumer<LibraryService>(
-                builder: (context, library, _) {
-                  if (library.totalDocumentCount != null) {
-                    return Text(
-                      '(${library.documents.length} of ${library.totalDocumentCount} loaded)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+              if (_isSearching) ...[
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = false;
+                      _searchQuery = '';
+                      _searchController.clear();
+                    });
+                  },
+                  tooltip: 'Close search',
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Search by title, composer, arranger, or tags...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () {
-                  // TODO: Implement search
-                },
-              ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+              ] else ...[
+                const Text(
+                  'Sheet Music Library',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 16),
+                Consumer<LibraryService>(
+                  builder: (context, library, _) {
+                    if (library.totalDocumentCount != null) {
+                      return Text(
+                        '(${library.documents.length} of ${library.totalDocumentCount} loaded)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                  tooltip: 'Search library',
+                ),
+              ],
             ],
           ),
         ),
         Expanded(
           child: Consumer<LibraryService>(
             builder: (context, library, _) {
-              if (library.documents.isEmpty && !library.isLoadingMore) {
+              // Get filtered documents based on search query
+              final displayDocuments = _searchQuery.isEmpty
+                  ? library.documents
+                  : library.search(_searchQuery);
+
+              if (displayDocuments.isEmpty && !library.isLoadingMore) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.library_music_outlined,
+                        _searchQuery.isNotEmpty
+                            ? Icons.search_off
+                            : Icons.library_music_outlined,
                         size: 64,
                         color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No sheet music in library',
+                        _searchQuery.isNotEmpty
+                            ? 'No results found'
+                            : 'No sheet music in library',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Import PDF or images to get started',
+                        _searchQuery.isNotEmpty
+                            ? 'Try a different search term'
+                            : 'Import PDF or images to get started',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -198,10 +263,11 @@ class _LibraryViewState extends State<_LibraryView> {
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
-                itemCount: library.documents.length + (library.isLoadingMore ? 1 : 0),
+                itemCount: displayDocuments.length + 
+                    (library.isLoadingMore && _searchQuery.isEmpty ? 1 : 0),
                 itemBuilder: (context, index) {
-                  // Show loading indicator at the end
-                  if (index >= library.documents.length) {
+                  // Show loading indicator at the end (only when not searching)
+                  if (index >= displayDocuments.length) {
                     return const Center(
                       child: Padding(
                         padding: EdgeInsets.all(16.0),
@@ -210,7 +276,7 @@ class _LibraryViewState extends State<_LibraryView> {
                     );
                   }
 
-                  final doc = library.documents[index];
+                  final doc = displayDocuments[index];
                   return _DocumentCard(document: doc);
                 },
               );
