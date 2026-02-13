@@ -1,0 +1,84 @@
+# Flutter/Dart specific
+flutter_app/.dart_tool/
+flutter_app/.packages
+flutter_app/.pub-cache/
+flutter_app/.pub/
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# Android
+flutter_app/android/.gradle/
+flutter_app/android/captures/
+flutter_app/android/local.properties
+flutter_app/android/app/debug/
+flutter_app/android/app/profile/
+flutter_app/android/app/release/
+flutter_app/android/.gradletasknamecache
+
+# iOS
+flutter_app/ios/Flutter/flutter_export_environment.sh
+flutter_app/ios/Flutter/Flutter.framework
+flutter_app/ios/Flutter/Flutter.podspec
+flutter_app/ios/Pods/
+flutter_app/ios/.symlinks/
+flutter_app/ios/Flutter/.last_build_id
+flutter_app/ios/Runner.xcworkspace/
+
+# macOS
+flutter_app/macos/Flutter/ephemeral/
+flutter_app/macos/Flutter/Flutter-Debug.xcconfig
+flutter_app/macos/Flutter/Flutter-Release.xcconfig
+
+# Windows
+flutter_app/windows/flutter/ephemeral/
+
+# Linux
+flutter_app/linux/flutter/ephemeral/
+
+# Gradle
+audiveris_service/.gradle/
+audiveris_service/build/
+audiveris_service/gradle/
+audiveris_service/gradlew
+audiveris_service/gradlew.bat
+
+# Java
+*.class
+*.log
+*.jar
+!gradle-wrapper.jar
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# Environment
+.env
+.env.local
+
+# User data
+data/
+storage/
+temp/
