@@ -22,6 +22,13 @@ class MobileConnectionService extends ChangeNotifier {
   String? _errorMessage;
   final List<SheetMusicDocument> _documents = [];
   bool _isSyncing = false;
+  
+  // Pagination state
+  int _currentPage = 0;
+  int _pageSize = 20;
+  bool _hasMoreDocuments = true;
+  bool _isLoadingMore = false;
+  int? _totalDocumentCount;
 
   // Getters
   DiscoveredServer? get connectedServer => _connectedServer;
@@ -30,6 +37,9 @@ class MobileConnectionService extends ChangeNotifier {
   List<SheetMusicDocument> get documents => List.unmodifiable(_documents);
   bool get isSyncing => _isSyncing;
   bool get isConnected => _status == ConnectionStatus.connected;
+  bool get hasMoreDocuments => _hasMoreDocuments;
+  bool get isLoadingMore => _isLoadingMore;
+  int? get totalDocumentCount => _totalDocumentCount;
 
   /// Connect to a discovered server
   Future<bool> connect(DiscoveredServer server) async {
@@ -206,21 +216,27 @@ class MobileConnectionService extends ChangeNotifier {
     }
   }
 
-  /// Sync documents from server
+  /// Sync documents from server (loads first page)
   Future<void> syncDocuments() async {
     if (!isConnected || _connectedServer == null) return;
 
     _isSyncing = true;
+    _currentPage = 0;
+    _hasMoreDocuments = true;
     notifyListeners();
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents'))
+          .get(Uri.parse('${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final docsData = data['documents'] as List<dynamic>;
+        
+        // Get pagination info
+        _totalDocumentCount = data['totalCount'] as int?;
+        _hasMoreDocuments = data['hasMore'] as bool? ?? false;
 
         _documents.clear();
         for (final docData in docsData) {
@@ -234,7 +250,7 @@ class MobileConnectionService extends ChangeNotifier {
         }
 
         if (kDebugMode) {
-          print('Synced ${_documents.length} documents');
+          print('Synced ${_documents.length} documents (total: $_totalDocumentCount)');
         }
       } else {
         throw Exception('Server returned status ${response.statusCode}');
@@ -246,6 +262,60 @@ class MobileConnectionService extends ChangeNotifier {
       _errorMessage = 'Failed to sync: $e';
     } finally {
       _isSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load next page of documents
+  Future<void> loadNextPage() async {
+    if (!isConnected || 
+        _connectedServer == null || 
+        _isLoadingMore || 
+        !_hasMoreDocuments) {
+      return;
+    }
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      _currentPage++;
+      final response = await http
+          .get(Uri.parse('${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final docsData = data['documents'] as List<dynamic>;
+        
+        // Update pagination info
+        _totalDocumentCount = data['totalCount'] as int?;
+        _hasMoreDocuments = data['hasMore'] as bool? ?? false;
+
+        // Add new documents
+        for (final docData in docsData) {
+          try {
+            _documents.add(SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+          } catch (e) {
+            if (kDebugMode) {
+              print('Error parsing document: $e');
+            }
+          }
+        }
+
+        if (kDebugMode) {
+          print('Loaded page $_currentPage: ${_documents.length}/$_totalDocumentCount documents');
+        }
+      } else {
+        throw Exception('Server returned status ${response.statusCode}');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error loading next page: $e');
+      }
+      _errorMessage = 'Failed to load more: $e';
+    } finally {
+      _isLoadingMore = false;
       notifyListeners();
     }
   }
@@ -319,13 +389,15 @@ class MobileConnectionService extends ChangeNotifier {
     }
   }
 
-  /// Search documents
-  Future<List<SheetMusicDocument>> search(String query) async {
+  /// Search documents (with pagination support)
+  Future<List<SheetMusicDocument>> search(String query, {int page = 0, int pageSize = 20}) async {
     if (!isConnected || _connectedServer == null) return [];
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/search?q=${Uri.encodeComponent(query)}'))
+          .get(Uri.parse(
+            '${_connectedServer!.url}/api/search?q=${Uri.encodeComponent(query)}&page=$page&pageSize=$pageSize',
+          ))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {

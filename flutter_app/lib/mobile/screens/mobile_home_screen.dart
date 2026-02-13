@@ -74,113 +74,183 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   }
 }
 
-class _LibraryView extends StatelessWidget {
+class _LibraryView extends StatefulWidget {
   const _LibraryView();
+
+  @override
+  State<_LibraryView> createState() => _LibraryViewState();
+}
+
+class _LibraryViewState extends State<_LibraryView> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // Load next page when user is 200 pixels from bottom
+      final connectionService = context.read<MobileConnectionService>();
+      if (connectionService.isConnected && 
+          connectionService.hasMoreDocuments && 
+          !connectionService.isLoadingMore) {
+        connectionService.loadNextPage();
+      }
+    }
+  }
+
+  Future<void> _onRefresh() async {
+    final connectionService = context.read<MobileConnectionService>();
+    if (connectionService.isConnected) {
+      await connectionService.syncDocuments();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<MobileConnectionService>(
       builder: (context, connectionService, _) {
-        return CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              title: const Text('My Sheet Music'),
-              floating: true,
-              actions: [
-                if (connectionService.isConnected)
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverAppBar(
+                title: Row(
+                  children: [
+                    const Text('My Sheet Music'),
+                    if (connectionService.isConnected && 
+                        connectionService.totalDocumentCount != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: Text(
+                          '(${connectionService.documents.length}/${connectionService.totalDocumentCount})',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
+                floating: true,
+                actions: [
+                  if (connectionService.isConnected)
+                    IconButton(
+                      icon: connectionService.isSyncing
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh),
+                      onPressed: connectionService.isSyncing
+                          ? null
+                          : () => connectionService.syncDocuments(),
+                      tooltip: 'Sync with desktop',
+                    ),
                   IconButton(
-                    icon: connectionService.isSyncing
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh),
-                    onPressed: connectionService.isSyncing
-                        ? null
-                        : () => connectionService.syncDocuments(),
-                    tooltip: 'Sync with desktop',
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    // TODO: Implement search
-                  },
-                ),
-              ],
-            ),
-            if (!connectionService.isConnected)
-              SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.cloud_off,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Not Connected',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Connect to desktop to view your library',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          DefaultTabController.of(context).animateTo(2);
-                        },
-                        icon: const Icon(Icons.link),
-                        label: const Text('Connect Now'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else if (connectionService.documents.isEmpty)
-              SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.library_music_outlined,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No sheet music yet',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Add music on desktop or capture with camera',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final doc = connectionService.documents[index];
-                      return _DocumentListTile(document: doc);
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      // TODO: Implement search
                     },
-                    childCount: connectionService.documents.length,
+                  ),
+                ],
+              ),
+              if (!connectionService.isConnected)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.cloud_off,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Not Connected',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Connect to desktop to view your library',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            DefaultTabController.of(context).animateTo(2);
+                          },
+                          icon: const Icon(Icons.link),
+                          label: const Text('Connect Now'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (connectionService.documents.isEmpty && !connectionService.isLoadingMore)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.library_music_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No sheet music yet',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Add music on desktop or capture with camera',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        // Show loading indicator at the end
+                        if (index >= connectionService.documents.length) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final doc = connectionService.documents[index];
+                        return _DocumentListTile(document: doc);
+                      },
+                      childCount: connectionService.documents.length + 
+                                   (connectionService.isLoadingMore ? 1 : 0),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );

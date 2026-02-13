@@ -119,12 +119,40 @@ class DesktopServerService extends ChangeNotifier {
       );
     });
 
-    // Get all documents
+    // Get all documents (with pagination support)
     router.get('/api/documents', (shelf.Request request) async {
+      final pageParam = request.url.queryParameters['page'];
+      final pageSizeParam = request.url.queryParameters['pageSize'];
+      
+      // If pagination parameters are provided, use paginated response
+      if (pageParam != null && pageSizeParam != null) {
+        final page = int.tryParse(pageParam) ?? 0;
+        final pageSize = int.tryParse(pageSizeParam) ?? 20;
+        
+        final documents = await _libraryService._databaseService.getDocumentsPage(
+          page: page,
+          pageSize: pageSize,
+        );
+        final totalCount = await _libraryService._databaseService.getDocumentCount();
+        
+        return shelf.Response.ok(
+          json.encode({
+            'documents': documents.map((d) => _documentToJson(d)).toList(),
+            'page': page,
+            'pageSize': pageSize,
+            'totalCount': totalCount,
+            'hasMore': (page + 1) * pageSize < totalCount,
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+      
+      // Default: return all loaded documents
       final documents = _libraryService.documents;
       return shelf.Response.ok(
         json.encode({
           'documents': documents.map((d) => _documentToJson(d)).toList(),
+          'totalCount': _libraryService.totalDocumentCount,
         }),
         headers: {'Content-Type': 'application/json'},
       );
@@ -245,9 +273,37 @@ class DesktopServerService extends ChangeNotifier {
       _handleWebSocketConnection(webSocket);
     }));
 
-    // Search documents
-    router.get('/api/search', (shelf.Request request) {
+    // Search documents (with pagination support)
+    router.get('/api/search', (shelf.Request request) async {
       final query = request.url.queryParameters['q'] ?? '';
+      final pageParam = request.url.queryParameters['page'];
+      final pageSizeParam = request.url.queryParameters['pageSize'];
+      
+      // If pagination parameters are provided, use paginated search
+      if (pageParam != null && pageSizeParam != null) {
+        final page = int.tryParse(pageParam) ?? 0;
+        final pageSize = int.tryParse(pageSizeParam) ?? 20;
+        
+        final results = await _libraryService._databaseService.searchDocumentsPage(
+          query: query,
+          page: page,
+          pageSize: pageSize,
+        );
+        final totalCount = await _libraryService._databaseService.getSearchCount(query);
+        
+        return shelf.Response.ok(
+          json.encode({
+            'results': results.map((d) => _documentToJson(d)).toList(),
+            'page': page,
+            'pageSize': pageSize,
+            'totalCount': totalCount,
+            'hasMore': (page + 1) * pageSize < totalCount,
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+      
+      // Default: return all search results from memory
       final results = _libraryService.search(query);
       return shelf.Response.ok(
         json.encode({

@@ -8,9 +8,21 @@ class LibraryService extends ChangeNotifier {
   final List<SheetMusicDocument> _documents = [];
   final Map<String, List<Annotation>> _annotations = {};
   bool _isLoaded = false;
+  
+  // Pagination state
+  int _currentPage = 0;
+  int _pageSize = 20;
+  bool _hasMorePages = true;
+  bool _isLoadingMore = false;
+  int? _totalDocumentCount;
 
   List<SheetMusicDocument> get documents => List.unmodifiable(_documents);
   bool get isLoaded => _isLoaded;
+  bool get hasMorePages => _hasMorePages;
+  bool get isLoadingMore => _isLoadingMore;
+  int? get totalDocumentCount => _totalDocumentCount;
+  int get currentPage => _currentPage;
+  int get pageSize => _pageSize;
 
   /// Get annotations for a specific document
   List<Annotation> getAnnotations(String documentId) {
@@ -121,12 +133,25 @@ class LibraryService extends ChangeNotifier {
     if (_isLoaded) return;
     
     try {
-      // Load documents from database
+      // Load first page of documents from database
       _documents.clear();
-      final docs = await _databaseService.getAllDocuments();
+      _currentPage = 0;
+      _hasMorePages = true;
+      
+      // Get total count
+      _totalDocumentCount = await _databaseService.getDocumentCount();
+      
+      // Load first page
+      final docs = await _databaseService.getDocumentsPage(
+        page: _currentPage,
+        pageSize: _pageSize,
+      );
       _documents.addAll(docs);
       
-      // Load annotations for each document
+      // Check if there are more pages
+      _hasMorePages = _documents.length < _totalDocumentCount!;
+      
+      // Load annotations for loaded documents
       _annotations.clear();
       for (final doc in docs) {
         final annotations = await _databaseService.getAnnotations(doc.id);
@@ -142,6 +167,58 @@ class LibraryService extends ChangeNotifier {
         print('[LibraryService] Error loading library: $e');
       }
       rethrow;
+    }
+  }
+
+  /// Load next page of documents
+  Future<void> loadNextPage() async {
+    if (!_isLoaded || _isLoadingMore || !_hasMorePages) return;
+    
+    try {
+      _isLoadingMore = true;
+      notifyListeners();
+      
+      _currentPage++;
+      final docs = await _databaseService.getDocumentsPage(
+        page: _currentPage,
+        pageSize: _pageSize,
+      );
+      
+      // Add new documents
+      _documents.addAll(docs);
+      
+      // Load annotations for new documents
+      for (final doc in docs) {
+        final annotations = await _databaseService.getAnnotations(doc.id);
+        if (annotations.isNotEmpty) {
+          _annotations[doc.id] = annotations;
+        }
+      }
+      
+      // Update total count and check if more pages exist
+      _totalDocumentCount = await _databaseService.getDocumentCount();
+      _hasMorePages = _documents.length < _totalDocumentCount!;
+      
+      _isLoadingMore = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoadingMore = false;
+      if (kDebugMode) {
+        print('[LibraryService] Error loading next page: $e');
+      }
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Set page size for pagination
+  void setPageSize(int size) {
+    if (size > 0 && size != _pageSize) {
+      _pageSize = size;
+      if (_isLoaded) {
+        // Reload with new page size
+        reloadLibrary();
+      }
     }
   }
 

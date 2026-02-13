@@ -181,6 +181,38 @@ class DatabaseService {
     return documents;
   }
 
+  /// Get paginated documents
+  Future<List<SheetMusicDocument>> getDocumentsPage({
+    required int page,
+    required int pageSize,
+  }) async {
+    final db = await database;
+    final offset = page * pageSize;
+    
+    final results = await db.query(
+      _documentsTable,
+      orderBy: 'modified_at DESC',
+      limit: pageSize,
+      offset: offset,
+    );
+
+    final documents = <SheetMusicDocument>[];
+    for (final docMap in results) {
+      final tags = await _getDocumentTags(docMap['id'] as String);
+      documents.add(_documentFromMap(docMap, tags));
+    }
+
+    return documents;
+  }
+
+  /// Get total document count
+  Future<int> getDocumentCount() async {
+    final db = await database;
+    return Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM $_documentsTable'),
+    ) ?? 0;
+  }
+
   /// Search documents by title, composer, or tags
   Future<List<SheetMusicDocument>> searchDocuments(String query) async {
     final db = await database;
@@ -200,6 +232,48 @@ class DatabaseService {
     }
 
     return documents;
+  }
+
+  /// Search documents with pagination
+  Future<List<SheetMusicDocument>> searchDocumentsPage({
+    required String query,
+    required int page,
+    required int pageSize,
+  }) async {
+    final db = await database;
+    final lowerQuery = '%${query.toLowerCase()}%';
+    final offset = page * pageSize;
+    
+    final results = await db.query(
+      _documentsTable,
+      where: 'LOWER(title) LIKE ? OR LOWER(composer) LIKE ? OR LOWER(arranger) LIKE ?',
+      whereArgs: [lowerQuery, lowerQuery, lowerQuery],
+      orderBy: 'modified_at DESC',
+      limit: pageSize,
+      offset: offset,
+    );
+
+    final documents = <SheetMusicDocument>[];
+    for (final docMap in results) {
+      final tags = await _getDocumentTags(docMap['id'] as String);
+      documents.add(_documentFromMap(docMap, tags));
+    }
+
+    return documents;
+  }
+
+  /// Get search result count
+  Future<int> getSearchCount(String query) async {
+    final db = await database;
+    final lowerQuery = '%${query.toLowerCase()}%';
+    
+    return Sqflite.firstIntValue(
+      await db.rawQuery(
+        'SELECT COUNT(*) FROM $_documentsTable '
+        'WHERE LOWER(title) LIKE ? OR LOWER(composer) LIKE ? OR LOWER(arranger) LIKE ?',
+        [lowerQuery, lowerQuery, lowerQuery],
+      ),
+    ) ?? 0;
   }
 
   /// Delete a document

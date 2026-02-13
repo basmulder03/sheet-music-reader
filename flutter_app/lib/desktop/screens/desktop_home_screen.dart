@@ -89,8 +89,39 @@ class _DesktopHomeScreenState extends State<DesktopHomeScreen> {
   }
 }
 
-class _LibraryView extends StatelessWidget {
+class _LibraryView extends StatefulWidget {
   const _LibraryView();
+
+  @override
+  State<_LibraryView> createState() => _LibraryViewState();
+}
+
+class _LibraryViewState extends State<_LibraryView> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // Load next page when user is 200 pixels from bottom
+      final library = context.read<LibraryService>();
+      if (library.hasMorePages && !library.isLoadingMore) {
+        library.loadNextPage();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +134,21 @@ class _LibraryView extends StatelessWidget {
               const Text(
                 'Sheet Music Library',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 16),
+              Consumer<LibraryService>(
+                builder: (context, library, _) {
+                  if (library.totalDocumentCount != null) {
+                    return Text(
+                      '(${library.documents.length} of ${library.totalDocumentCount} loaded)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
               const Spacer(),
               IconButton(
@@ -117,7 +163,7 @@ class _LibraryView extends StatelessWidget {
         Expanded(
           child: Consumer<LibraryService>(
             builder: (context, library, _) {
-              if (library.documents.isEmpty) {
+              if (library.documents.isEmpty && !library.isLoadingMore) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -143,6 +189,7 @@ class _LibraryView extends StatelessWidget {
               }
 
               return GridView.builder(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 250,
@@ -150,8 +197,18 @@ class _LibraryView extends StatelessWidget {
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
-                itemCount: library.documents.length,
+                itemCount: library.documents.length + (library.isLoadingMore ? 1 : 0),
                 itemBuilder: (context, index) {
+                  // Show loading indicator at the end
+                  if (index >= library.documents.length) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+
                   final doc = library.documents[index];
                   return _DocumentCard(document: doc);
                 },
