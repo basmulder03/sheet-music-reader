@@ -9,11 +9,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sheet_music_reader/main.dart';
+import 'package:sheet_music_reader/core/services/settings_service.dart';
 
 void main() {
   testWidgets('App launches successfully', (WidgetTester tester) async {
+    // Create a settings service for testing
+    final settingsService = SettingsService();
+    
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const SheetMusicReaderApp());
+    await tester.pumpWidget(SheetMusicReaderApp(settingsService: settingsService));
 
     // Verify that the app launches without errors.
     expect(find.byType(MaterialApp), findsOneWidget);

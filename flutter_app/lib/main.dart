@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'core/services/library_service.dart';
 import 'core/services/settings_service.dart';
@@ -22,17 +23,29 @@ import 'shared/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize SQLite FFI for desktop platforms
+  if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+  
+  // Initialize settings from storage
+  final settingsService = SettingsService();
+  await settingsService.loadSettings();
+  
   // Initialize image cache
   await ImageCacheService.instance.initialize();
   
   // Start memory manager periodic cleanup
   MemoryManagerService.instance.startPeriodicCleanup();
   
-  runApp(const SheetMusicReaderApp());
+  runApp(SheetMusicReaderApp(settingsService: settingsService));
 }
 
 class SheetMusicReaderApp extends StatelessWidget {
-  const SheetMusicReaderApp({super.key});
+  final SettingsService settingsService;
+  
+  const SheetMusicReaderApp({super.key, required this.settingsService});
 
   bool get _isDesktop {
     if (kIsWeb) return false;
@@ -49,7 +62,7 @@ class SheetMusicReaderApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => LibraryService()),
-        ChangeNotifierProvider(create: (_) => SettingsService()),
+        ChangeNotifierProvider.value(value: settingsService),
         ChangeNotifierProvider(create: (_) => AudiverisService()),
         ChangeNotifierProvider(create: (_) => MusicXmlService()),
         ChangeNotifierProvider(create: (_) => MidiPlaybackService()),

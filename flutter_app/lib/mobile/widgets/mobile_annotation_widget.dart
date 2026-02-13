@@ -51,7 +51,7 @@ class _MobileAnnotationWidgetState extends State<MobileAnnotationWidget> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

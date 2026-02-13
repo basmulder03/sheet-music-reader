@@ -101,11 +101,12 @@ class _CachedImageState extends State<CachedImage> {
 
   Future<Uint8List?> _loadFromFile() async {
     try {
-      final file = await Future.value(widget.imagePath).then((path) {
-        final f = File(path);
-        return f.exists().then((exists) => exists ? f.readAsBytes() : null);
-      });
-      return file;
+      final f = File(widget.imagePath);
+      final exists = await f.exists();
+      if (exists) {
+        return await f.readAsBytes();
+      }
+      return null;
     } catch (e) {
       return null;
     }

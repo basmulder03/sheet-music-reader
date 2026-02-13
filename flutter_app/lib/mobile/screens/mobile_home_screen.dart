@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/sheet_music_document.dart';
+import '../../shared/widgets/theme_selector_dialog.dart';
 import '../services/server_discovery_service.dart';
 import '../services/mobile_connection_service.dart';
 import 'mobile_document_viewer_screen.dart';
@@ -176,7 +177,7 @@ class _LibraryViewState extends State<_LibraryView> {
                         Icon(
                           Icons.cloud_off,
                           size: 64,
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -209,7 +210,7 @@ class _LibraryViewState extends State<_LibraryView> {
                         Icon(
                           Icons.library_music_outlined,
                           size: 64,
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -763,7 +764,7 @@ class _SettingsView extends StatelessWidget {
             subtitle: const Text('Choose your preferred theme'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Show theme selector
+              ThemeSelectorDialog.show(context);
             },
           ),
           ListTile(

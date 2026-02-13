@@ -494,7 +494,7 @@ class _InteractiveScorePainter extends CustomPainter {
     // Draw selection highlight
     if (isSelected && isEditMode) {
       final highlightPaint = Paint()
-        ..color = theme.colorScheme.primary.withValues(alpha: 0.3)
+        ..color = theme.colorScheme.primary.withOpacity(0.3)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(x, noteY), 10, highlightPaint);
     }
@@ -582,7 +582,7 @@ class _InteractiveScorePainter extends CustomPainter {
     // Draw selection highlight
     if (isSelected && isEditMode) {
       final highlightPaint = Paint()
-        ..color = theme.colorScheme.primary.withValues(alpha: 0.3)
+        ..color = theme.colorScheme.primary.withOpacity(0.3)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(x, y + 2 * staffLineSpacing), 10, highlightPaint);
     }

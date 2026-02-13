@@ -12,7 +12,7 @@ class AppTheme {
         centerTitle: false,
         elevation: 0,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -38,7 +38,7 @@ class AppTheme {
         centerTitle: false,
         elevation: 0,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),

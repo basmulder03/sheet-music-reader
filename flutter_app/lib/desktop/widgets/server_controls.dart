@@ -146,7 +146,7 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: isRunning
-            ? Colors.green.withValues(alpha: 0.1)
+            ? Colors.green.withOpacity(0.1)
             : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/library_service.dart';
 import '../../core/services/file_import_service.dart';
 import '../../core/models/sheet_music_document.dart';
+import '../../shared/widgets/theme_selector_dialog.dart';
 import '../widgets/server_controls.dart';
 import '../widgets/server_status.dart';
 import 'document_viewer_screen.dart';
@@ -171,7 +172,7 @@ class _LibraryViewState extends State<_LibraryView> {
                       Icon(
                         Icons.library_music_outlined,
                         size: 64,
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -447,7 +448,7 @@ class _SettingsView extends StatelessWidget {
           subtitle: const Text('Choose your preferred theme'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            // TODO: Show theme selector
+            ThemeSelectorDialog.show(context);
           },
         ),
         ListTile(
