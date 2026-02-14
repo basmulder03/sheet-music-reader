@@ -6,6 +6,10 @@ flutter_app/.pub/
 flutter_app/build/
 flutter_app/.flutter-plugins
 flutter_app/.flutter-plugins-dependencies
+**/.dart_tool/
+**/.packages
+**/.pub/
+**/build/
 
 # IntelliJ IDEA
 .idea/
@@ -77,6 +81,12 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Dart package locks
+packages/**/pubspec.lock
+
+# Backend runtime data
+services/sync_backend/data/
 
 # User data
 data/

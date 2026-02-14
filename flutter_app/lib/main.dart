@@ -16,35 +16,36 @@ import 'core/services/image_cache_service.dart';
 import 'core/services/memory_manager_service.dart';
 import 'mobile/services/server_discovery_service.dart';
 import 'mobile/services/mobile_connection_service.dart';
+import 'mobile/services/mobile_offline_storage_service.dart';
 import 'desktop/screens/desktop_home_screen.dart';
 import 'mobile/screens/mobile_home_screen.dart';
 import 'shared/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize SQLite FFI for desktop platforms
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
-  
+
   // Initialize settings from storage
   final settingsService = SettingsService();
   await settingsService.loadSettings();
-  
+
   // Initialize image cache
   await ImageCacheService.instance.initialize();
-  
+
   // Start memory manager periodic cleanup
   MemoryManagerService.instance.startPeriodicCleanup();
-  
+
   runApp(SheetMusicReaderApp(settingsService: settingsService));
 }
 
 class SheetMusicReaderApp extends StatelessWidget {
   final SettingsService settingsService;
-  
+
   const SheetMusicReaderApp({super.key, required this.settingsService});
 
   bool get _isDesktop {
@@ -70,6 +71,7 @@ class SheetMusicReaderApp extends StatelessWidget {
         // Mobile services
         ChangeNotifierProvider(create: (_) => ServerDiscoveryService()),
         ChangeNotifierProvider(create: (_) => MobileConnectionService()),
+        ChangeNotifierProvider(create: (_) => MobileOfflineStorageService()),
         // Desktop server service
         ChangeNotifierProxyProvider<LibraryService, DesktopServerService>(
           create: (context) => DesktopServerService(
@@ -78,13 +80,15 @@ class SheetMusicReaderApp extends StatelessWidget {
           update: (context, library, previous) =>
               previous ?? DesktopServerService(library),
         ),
-        ChangeNotifierProxyProvider2<AudiverisService, LibraryService, FileImportService>(
+        ChangeNotifierProxyProvider2<AudiverisService, LibraryService,
+            FileImportService>(
           create: (context) => FileImportService(
             audiverisService: context.read<AudiverisService>(),
             libraryService: context.read<LibraryService>(),
           ),
           update: (context, audiveris, library, previous) =>
-              previous ?? FileImportService(
+              previous ??
+              FileImportService(
                 audiverisService: audiveris,
                 libraryService: library,
               ),

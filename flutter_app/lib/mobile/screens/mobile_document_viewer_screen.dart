@@ -5,6 +5,7 @@ import '../../core/models/musicxml_model.dart';
 import '../../core/services/musicxml_service.dart';
 import '../../desktop/widgets/musicxml_renderer.dart';
 import '../services/mobile_connection_service.dart';
+import '../services/mobile_offline_storage_service.dart';
 import '../widgets/mobile_annotation_widget.dart';
 
 class MobileDocumentViewerScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _MobileDocumentViewerScreenState
   bool _isLoading = true;
   String? _errorMessage;
   double _zoomLevel = 1.0;
+  bool _loadedFromOfflineCache = false;
 
   @override
   void initState() {
@@ -37,18 +39,32 @@ class _MobileDocumentViewerScreenState
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _loadedFromOfflineCache = false;
     });
 
     try {
       final connectionService = context.read<MobileConnectionService>();
-      final musicXmlContent =
-          await connectionService.getMusicXml(widget.document.id);
+      final offlineStorage = context.read<MobileOfflineStorageService>();
+      final musicXmlService = context.read<MusicXmlService>();
+      String? musicXmlContent;
 
-      if (musicXmlContent == null) {
-        throw Exception('Failed to download MusicXML from server');
+      if (connectionService.isConnected) {
+        musicXmlContent =
+            await connectionService.getMusicXml(widget.document.id);
       }
 
-      final musicXmlService = context.read<MusicXmlService>();
+      if (musicXmlContent == null) {
+        musicXmlContent = await offlineStorage.readMusicXml(widget.document.id);
+        _loadedFromOfflineCache = musicXmlContent != null;
+      } else {
+        _loadedFromOfflineCache = false;
+      }
+
+      if (musicXmlContent == null) {
+        throw Exception(
+            'This score is not available offline yet and could not be downloaded.');
+      }
+
       final score = await musicXmlService.parseMusicXml(musicXmlContent);
 
       setState(() {
@@ -241,6 +257,14 @@ class _MobileDocumentViewerScreenState
             ),
             const SizedBox(height: 16),
             // Music score renderer
+            if (_loadedFromOfflineCache)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Chip(
+                  avatar: Icon(Icons.offline_pin, size: 18),
+                  label: Text('Viewing offline copy'),
+                ),
+              ),
             Transform.scale(
               scale: _zoomLevel,
               alignment: Alignment.topLeft,

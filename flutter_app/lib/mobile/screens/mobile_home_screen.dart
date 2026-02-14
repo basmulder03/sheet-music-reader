@@ -7,6 +7,7 @@ import '../../shared/widgets/about_dialog.dart' as app_about;
 import '../widgets/mobile_sync_settings_dialog.dart';
 import '../services/server_discovery_service.dart';
 import '../services/mobile_connection_service.dart';
+import '../services/mobile_offline_storage_service.dart';
 import 'mobile_document_viewer_screen.dart';
 import 'camera_capture_screen.dart';
 
@@ -571,16 +572,36 @@ class _DocumentListTile extends StatelessWidget {
     );
   }
 
-  void _downloadForOffline(BuildContext context) {
-    // Show a snackbar indicating download started
-    // In a real app, this would download the MusicXML and cache it locally
-    ScaffoldMessenger.of(context).showSnackBar(
+  Future<void> _downloadForOffline(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final connectionService = context.read<MobileConnectionService>();
+    final offlineStorage = context.read<MobileOfflineStorageService>();
+
+    messenger.showSnackBar(
       SnackBar(
         content: Text('Downloading "${document.title}" for offline use...'),
-        action: SnackBarAction(
-          label: 'Dismiss',
-          onPressed: () {},
+      ),
+    );
+
+    final musicXml = await connectionService.getMusicXml(document.id);
+    if (musicXml == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content:
+              Text('Could not download this document. Check your connection.'),
+          backgroundColor: Colors.red,
         ),
+      );
+      return;
+    }
+
+    await offlineStorage.saveMusicXml(
+        documentId: document.id, musicXml: musicXml);
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Saved "${document.title}" for offline use'),
+        backgroundColor: Colors.green,
       ),
     );
   }

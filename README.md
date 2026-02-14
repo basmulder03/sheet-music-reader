@@ -34,11 +34,27 @@ sheet-music-reader/
 │   │   ├── mobile/       # Mobile-specific code
 │   │   └── shared/       # Shared UI components
 │   └── pubspec.yaml
+├── packages/
+│   └── sync_protocol/     # Shared sync API/data models (pure Dart)
+├── services/
+│   └── sync_backend/      # Self-hosted sync backend (Dart, Docker-ready)
 ├── audiveris_service/    # Java service wrapping Audiveris
 │   ├── src/
 │   └── build.gradle
 └── docs/                 # Documentation
 ```
+
+## Self-Hosted Sync Backend
+
+The project now includes an early standalone sync backend service:
+
+- **Location**: `services/sync_backend`
+- **Runtime**: Dart (`shelf` + SQLite + filesystem blobs)
+- **Mode**: single-library/single-tenant in v1, schema designed for future multi-tenant expansion
+- **Deployment**: Dockerfile and docker-compose starter included
+- **Unraid prep**: template XML included at `services/sync_backend/unraid/sheet-music-sync-backend.xml`
+
+This backend is intentionally decoupled from Flutter UI code so it can be split into a separate repository later without major rewrites.
 
 ## Technology Stack
 
