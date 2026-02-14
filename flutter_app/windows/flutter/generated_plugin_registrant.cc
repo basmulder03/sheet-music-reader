@@ -8,10 +8,13 @@
 
 #include <audioplayers_windows/audioplayers_windows_plugin.h>
 #include <file_selector_windows/file_selector_windows.h>
+#include <universal_ble/universal_ble_plugin_c_api.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   AudioplayersWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("AudioplayersWindowsPlugin"));
   FileSelectorWindowsRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FileSelectorWindows"));
+  UniversalBlePluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("UniversalBlePluginCApi"));
 }

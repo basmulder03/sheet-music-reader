@@ -28,7 +28,7 @@ dependencies:
   web_socket_channel: ^2.4.0
   
   # MIDI and audio
-  flutter_midi_command: ^0.4.15
+  flutter_midi_command: ^0.5.3
   audioplayers: ^5.2.1
   
   # File handling
@@ -65,3 +65,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+dependency_overrides:
+  flutter_plugin_android_lifecycle: 2.0.23

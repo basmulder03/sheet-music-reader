@@ -102,6 +102,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.0"
+  bluez:
+    dependency: transitive
+    description:
+      name: bluez
+      sha256: "61a7204381925896a374301498f2f5399e59827c6498ae1e924aaa598751b545"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.3"
   boolean_selector:
     dependency: transitive
     description:
@@ -302,6 +310,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.7"
+  dbus:
+    dependency: transitive
+    description:
+      name: dbus
+      sha256: d0c98dcd4f5169878b6cf8f6e0a52403a9dff371a3e2f019697accbf6f44a270
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.12"
   fake_async:
     dependency: transitive
     description:
@@ -404,10 +420,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_midi_command
-      sha256: a74e9f15b397e2f9c1869629b58bbf125c52cab71189a4f393c6e0bd6f77c418
+      sha256: bce9e83d3fb05aef275af83d65c53a40623735516ef1bdcefc0ba1ca5db1d89f
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.17"
+    version: "0.5.3"
   flutter_midi_command_linux:
     dependency: transitive
     description:
@@ -424,19 +440,35 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.3"
-  flutter_plugin_android_lifecycle:
+  flutter_midi_command_windows:
     dependency: transitive
     description:
-      name: flutter_plugin_android_lifecycle
-      sha256: "1c2b787f99bdca1f3718543f81d38aa1b124817dfeb9fb196201bea85b6134bf"
+      name: flutter_midi_command_windows
+      sha256: fd85c892d890f462487601e69228de261954e2cd8740f5396f5e3060d23ff097
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.26"
+    version: "0.1.1"
+  flutter_plugin_android_lifecycle:
+    dependency: "direct overridden"
+    description:
+      name: flutter_plugin_android_lifecycle
+      sha256: "9b78450b89f059e96c9ebb355fa6b3df1d6b330436e0b885fb49594c41721398"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.23"
   flutter_test:
     dependency: "direct dev"
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_web_bluetooth:
+    dependency: transitive
+    description:
+      name: flutter_web_bluetooth
+      sha256: fcd03e2e5f82edcedcbc940f1b6a0635a50757374183254f447640886c53208e
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.4"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -1161,6 +1193,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_ble:
+    dependency: transitive
+    description:
+      name: universal_ble
+      sha256: "50011255aa793589ccefb086ceead0f2eaddd30609a6f8b10ee4a0a548c3250e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.11"
   uuid:
     dependency: "direct main"
     description:

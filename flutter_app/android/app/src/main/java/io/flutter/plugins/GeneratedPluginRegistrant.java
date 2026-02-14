@@ -65,5 +65,10 @@ public final class GeneratedPluginRegistrant {
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin sqflite_android, com.tekartik.sqflite.SqflitePlugin", e);
     }
+    try {
+      flutterEngine.getPlugins().add(new com.navideck.universal_ble.UniversalBlePlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin universal_ble, com.navideck.universal_ble.UniversalBlePlugin", e);
+    }
   }
 }

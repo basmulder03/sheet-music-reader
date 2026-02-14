@@ -112,8 +112,8 @@ class _LibraryViewState extends State<_LibraryView> {
         _scrollController.position.maxScrollExtent - 200) {
       // Load next page when user is 200 pixels from bottom
       final connectionService = context.read<MobileConnectionService>();
-      if (connectionService.isConnected && 
-          connectionService.hasMoreDocuments && 
+      if (connectionService.isConnected &&
+          connectionService.hasMoreDocuments &&
           !connectionService.isLoadingMore) {
         connectionService.loadNextPage();
       }
@@ -201,14 +201,19 @@ class _LibraryViewState extends State<_LibraryView> {
                     : Row(
                         children: [
                           const Text('My Sheet Music'),
-                          if (connectionService.isConnected && 
+                          if (connectionService.isConnected &&
                               connectionService.totalDocumentCount != null)
                             Padding(
                               padding: const EdgeInsets.only(left: 8.0),
                               child: Text(
                                 '(${connectionService.documents.length}/${connectionService.totalDocumentCount})',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                     ),
                               ),
                             ),
@@ -229,7 +234,8 @@ class _LibraryViewState extends State<_LibraryView> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.refresh),
                         onPressed: connectionService.isSyncing
@@ -260,7 +266,10 @@ class _LibraryViewState extends State<_LibraryView> {
                         Icon(
                           Icons.cloud_off,
                           size: 64,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -290,7 +299,9 @@ class _LibraryViewState extends State<_LibraryView> {
                     child: CircularProgressIndicator(),
                   ),
                 )
-              else if (_isSearching && _searchQuery.isNotEmpty && _searchResults.isEmpty)
+              else if (_isSearching &&
+                  _searchQuery.isNotEmpty &&
+                  _searchResults.isEmpty)
                 SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -299,7 +310,10 @@ class _LibraryViewState extends State<_LibraryView> {
                         Icon(
                           Icons.search_off,
                           size: 64,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -328,7 +342,8 @@ class _LibraryViewState extends State<_LibraryView> {
                     ),
                   ),
                 )
-              else if (connectionService.documents.isEmpty && !connectionService.isLoadingMore)
+              else if (connectionService.documents.isEmpty &&
+                  !connectionService.isLoadingMore)
                 SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -337,7 +352,10 @@ class _LibraryViewState extends State<_LibraryView> {
                         Icon(
                           Icons.library_music_outlined,
                           size: 64,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -372,8 +390,8 @@ class _LibraryViewState extends State<_LibraryView> {
                         final doc = connectionService.documents[index];
                         return _DocumentListTile(document: doc);
                       },
-                      childCount: connectionService.documents.length + 
-                                   (connectionService.isLoadingMore ? 1 : 0),
+                      childCount: connectionService.documents.length +
+                          (connectionService.isLoadingMore ? 1 : 0),
                     ),
                   ),
                 ),
@@ -420,7 +438,8 @@ class _DocumentListTile extends StatelessWidget {
                     Text(
                       document.composer!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],
@@ -435,7 +454,8 @@ class _DocumentListTile extends StatelessWidget {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => MobileDocumentViewerScreen(document: document),
+                    builder: (context) =>
+                        MobileDocumentViewerScreen(document: document),
                   ),
                 );
               },
@@ -606,7 +626,8 @@ class _DocumentListTile extends StatelessWidget {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => MobileDocumentViewerScreen(document: document),
+              builder: (context) =>
+                  MobileDocumentViewerScreen(document: document),
             ),
           );
         },
@@ -690,7 +711,8 @@ class _CaptureView extends StatelessWidget {
               icon: const Icon(Icons.camera_alt),
               label: const Text('Open Camera'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               ),
             ),
           ],
@@ -754,7 +776,7 @@ class _ConnectViewState extends State<_ConnectView> {
 
   Widget _buildConnectedView(MobileConnectionService connectionService) {
     final server = connectionService.connectedServer!;
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -851,10 +873,11 @@ class _ConnectViewState extends State<_ConnectView> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Automatic Discovery',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        'Find My Desktop',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                     ],
                   ),
@@ -867,20 +890,22 @@ class _ConnectViewState extends State<_ConnectView> {
                       child: ElevatedButton.icon(
                         onPressed: () => discoveryService.startDiscovery(),
                         icon: const Icon(Icons.search),
-                        label: const Text('Scan for Servers'),
+                        label: const Text('Find Desktops (Recommended)'),
                       ),
                     ),
                   if (discoveryService.discoveredServers.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    const Text('Found servers:'),
+                    const Text('Available desktops:'),
                     const SizedBox(height: 8),
                     ...discoveryService.discoveredServers.map((server) {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: const Icon(Icons.computer),
-                          title: Text(server.address),
-                          subtitle: Text('Port ${server.port}'),
+                          title: Text(server.name == 'Desktop Server'
+                              ? server.address
+                              : server.name),
+                          subtitle: Text('${server.address}:${server.port}'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => _connectToServer(
                             connectionService,
@@ -905,7 +930,7 @@ class _ConnectViewState extends State<_ConnectView> {
             ),
           ),
           const SizedBox(height: 16),
-          // Manual connection section
+          // Advanced connection section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -915,50 +940,78 @@ class _ConnectViewState extends State<_ConnectView> {
                   Row(
                     children: [
                       Icon(
-                        Icons.edit,
+                        Icons.auto_awesome_outlined,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Manual Connection',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        'Easy First Step',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _addressController,
-                    decoration: const InputDecoration(
-                      labelText: 'Server Address',
-                      hintText: 'e.g., 192.168.1.100',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.computer),
-                    ),
-                    keyboardType: TextInputType.number,
+                  Text(
+                    'Use the button above to find your desktop automatically. Most setups work right away.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _portController,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      hintText: '8080',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.router),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _connectManually(
-                        discoveryService,
-                        connectionService,
+                  const SizedBox(height: 8),
+                  Theme(
+                    data: Theme.of(context)
+                        .copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.warning_amber_rounded,
+                        color: Theme.of(context).colorScheme.tertiary,
                       ),
-                      icon: const Icon(Icons.link),
-                      label: const Text('Connect'),
+                      title: const Text(
+                        'Advanced troubleshooting (nuclear options)',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                          'Only use this if auto-discovery does not work'),
+                      children: [
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _addressController,
+                          decoration: const InputDecoration(
+                            labelText: 'Desktop name or address',
+                            hintText: 'My-Laptop or 192.168.1.100',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.computer),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _portController,
+                          decoration: const InputDecoration(
+                            labelText: 'Port',
+                            hintText: '8080',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.router),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _connectManually(
+                              discoveryService,
+                              connectionService,
+                            ),
+                            icon: const Icon(Icons.link),
+                            label: const Text('Try Advanced Connection'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1021,7 +1074,7 @@ class _ConnectViewState extends State<_ConnectView> {
 
     if (address.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter server address')),
+        const SnackBar(content: Text('Please enter a desktop name or address')),
       );
       return;
     }

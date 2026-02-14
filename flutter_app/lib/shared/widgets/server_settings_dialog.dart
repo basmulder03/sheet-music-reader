@@ -26,7 +26,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
   late TextEditingController _deviceNameController;
   late bool _autoStartServer;
   late bool _enableMdns;
-  
+
   bool _isLoading = false;
   String? _errorMessage;
   bool _portAvailable = true;
@@ -35,12 +35,13 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
   void initState() {
     super.initState();
     final settings = context.read<SettingsService>();
-    
-    _portController = TextEditingController(text: settings.serverPort.toString());
+
+    _portController =
+        TextEditingController(text: settings.serverPort.toString());
     _deviceNameController = TextEditingController(text: settings.deviceName);
     _autoStartServer = settings.autoStartServer;
     _enableMdns = settings.enableMdns;
-    
+
     _portController.addListener(_onSettingsChanged);
     _deviceNameController.addListener(_onSettingsChanged);
   }
@@ -64,13 +65,13 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
       if (port < 1024 || port > 65535) {
         return false;
       }
-      
+
       // Check if the server is currently using this port
       final serverService = context.read<DesktopServerService>();
       if (serverService.isRunning && serverService.port == port) {
         return true; // Current port is fine
       }
-      
+
       // Try to bind to the port temporarily
       final server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
       await server.close();
@@ -148,10 +149,10 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
     try {
       final settings = context.read<SettingsService>();
       final serverService = context.read<DesktopServerService>();
-      
+
       // Check if server needs restart due to port change
-      final needsRestart = serverService.isRunning && 
-                           settings.serverPort != port;
+      final needsRestart =
+          serverService.isRunning && settings.serverPort != port;
 
       // Save settings
       await settings.setServerPort(port);
@@ -172,7 +173,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              needsRestart 
+              needsRestart
                   ? 'Server settings saved and server restarted'
                   : 'Server settings saved',
             ),
@@ -211,7 +212,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
-              
+
               // Device Name
               Text(
                 'Device Name',
@@ -228,65 +229,15 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Server Port
+
               Text(
-                'Server Port',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _portController,
-                      decoration: InputDecoration(
-                        hintText: '8080',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.router),
-                        errorText: !_portAvailable ? _errorMessage : null,
-                        suffixIcon: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: Padding(
-                                  padding: EdgeInsets.all(12.0),
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              )
-                            : _portAvailable && _portController.text.isNotEmpty
-                                ? const Icon(Icons.check_circle, color: Colors.green)
-                                : null,
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(5),
-                      ],
-                      onChanged: (_) {
-                        _validatePort();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  TextButton(
-                    onPressed: () {
-                      _portController.text = '8080';
-                      _validatePort();
-                    },
-                    child: const Text('Reset'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose a port between 1024 and 65535',
+                'Most users should leave advanced network settings unchanged.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
               ),
               const SizedBox(height: 20),
-              
+
               // Auto-start server
               SwitchListTile(
                 title: const Text('Auto-start Server'),
@@ -299,11 +250,12 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                 },
                 contentPadding: EdgeInsets.zero,
               ),
-              
+
               // Enable mDNS
               SwitchListTile(
                 title: const Text('Network Discovery'),
-                subtitle: const Text('Allow mobile devices to find this server automatically'),
+                subtitle: const Text(
+                    'Allow mobile devices to find this server automatically'),
                 value: _enableMdns,
                 onChanged: (value) {
                   setState(() {
@@ -312,9 +264,90 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                 },
                 contentPadding: EdgeInsets.zero,
               ),
-              
+
+              Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.warning_amber_rounded,
+                    color: Theme.of(context).colorScheme.tertiary,
+                  ),
+                  title: const Text(
+                    'Advanced troubleshooting (nuclear options)',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                      'Only change this if troubleshooting asks you to'),
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      'Custom connection port',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _portController,
+                            decoration: InputDecoration(
+                              hintText: '8080',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: const Icon(Icons.router),
+                              errorText: !_portAvailable ? _errorMessage : null,
+                              suffixIcon: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: Padding(
+                                        padding: EdgeInsets.all(12.0),
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      ),
+                                    )
+                                  : _portAvailable &&
+                                          _portController.text.isNotEmpty
+                                      ? const Icon(Icons.check_circle,
+                                          color: Colors.green)
+                                      : null,
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(5),
+                            ],
+                            onChanged: (_) {
+                              _validatePort();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        TextButton(
+                          onPressed: () {
+                            _portController.text = '8080';
+                            _validatePort();
+                          },
+                          child: const Text('Reset'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use a value between 1024 and 65535',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 16),
-              
+
               // Server status info
               Consumer<DesktopServerService>(
                 builder: (context, serverService, _) {
@@ -324,11 +357,13 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                       decoration: BoxDecoration(
                         color: Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.withOpacity(0.3)),
+                        border:
+                            Border.all(color: Colors.green.withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                          const Icon(Icons.check_circle,
+                              color: Colors.green, size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -340,7 +375,10 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                                 ),
                                 Text(
                                   '${serverService.serverAddress}:${serverService.port}',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
                                         fontFamily: 'monospace',
                                       ),
                                 ),
@@ -354,14 +392,17 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                     return Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             Icons.info_outline,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             size: 20,
                           ),
                           const SizedBox(width: 12),
@@ -377,7 +418,7 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                   }
                 },
               ),
-              
+
               if (_errorMessage != null && _portAvailable) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -398,7 +439,8 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                         child: Text(
                           _errorMessage!,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color:
+                                Theme.of(context).colorScheme.onErrorContainer,
                           ),
                         ),
                       ),

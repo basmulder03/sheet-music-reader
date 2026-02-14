@@ -16,7 +16,8 @@ class MobileSyncSettingsDialog extends StatefulWidget {
   }
 
   @override
-  State<MobileSyncSettingsDialog> createState() => _MobileSyncSettingsDialogState();
+  State<MobileSyncSettingsDialog> createState() =>
+      _MobileSyncSettingsDialogState();
 }
 
 class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
@@ -35,12 +36,12 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
   Future<void> _connectManually() async {
     final address = _addressController.text.trim();
     final portText = _portController.text.trim();
-    
+
     if (address.isEmpty) {
-      setState(() => _errorMessage = 'Please enter an IP address');
+      setState(() => _errorMessage = 'Please enter a desktop name or address');
       return;
     }
-    
+
     final port = int.tryParse(portText);
     if (port == null || port <= 0 || port > 65535) {
       setState(() => _errorMessage = 'Please enter a valid port (1-65535)');
@@ -55,7 +56,7 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
     try {
       final discovery = context.read<ServerDiscoveryService>();
       final connection = context.read<MobileConnectionService>();
-      
+
       final server = await discovery.addManualServer(address, port);
       if (server != null) {
         await connection.connect(server);
@@ -66,7 +67,8 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
           );
         }
       } else {
-        setState(() => _errorMessage = 'Could not reach server at $address:$port');
+        setState(
+            () => _errorMessage = 'Could not reach server at $address:$port');
       }
     } catch (e) {
       setState(() => _errorMessage = 'Connection failed: $e');
@@ -111,14 +113,14 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 16),
-                  
+
                   // Discovered Servers
                   _buildDiscoveredServers(discovery, connection, colorScheme),
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 16),
-                  
-                  // Manual Connection
+
+                  // Advanced Connection
                   _buildManualConnection(colorScheme),
                 ],
               ),
@@ -135,7 +137,8 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
     );
   }
 
-  Widget _buildConnectionStatus(MobileConnectionService connection, ColorScheme colorScheme) {
+  Widget _buildConnectionStatus(
+      MobileConnectionService connection, ColorScheme colorScheme) {
     final status = connection.status;
     final server = connection.connectedServer;
 
@@ -288,7 +291,8 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
               contentPadding: EdgeInsets.zero,
               leading: Icon(
                 Icons.computer,
-                color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                color:
+                    isConnected ? Colors.green : colorScheme.onSurfaceVariant,
               ),
               title: Text(server.name),
               subtitle: Text('${server.address}:${server.port}'),
@@ -315,69 +319,97 @@ class _MobileSyncSettingsDialogState extends State<MobileSyncSettingsDialog> {
       children: [
         Row(
           children: [
-            Icon(Icons.link_outlined, size: 20, color: colorScheme.primary),
+            Icon(Icons.auto_awesome_outlined,
+                size: 20, color: colorScheme.primary),
             const SizedBox(width: 8),
             const Text(
-              'Manual Connection',
+              'Easiest Option',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 3,
-              child: TextField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'IP Address',
-                  hintText: '192.168.1.100',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 1,
-              child: TextField(
-                controller: _portController,
-                decoration: const InputDecoration(
-                  labelText: 'Port',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        if (_errorMessage != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _errorMessage!,
-            style: TextStyle(color: colorScheme.error, fontSize: 12),
+        Text(
+          'Tap refresh above and choose your desktop from the list. This works for most people.',
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
           ),
-        ],
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _isConnecting ? null : _connectManually,
-            icon: _isConnecting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+        ),
+        const SizedBox(height: 8),
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            leading:
+                Icon(Icons.warning_amber_rounded, color: colorScheme.tertiary),
+            title: const Text(
+              'Advanced troubleshooting (nuclear options)',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle:
+                const Text('Only use this if auto-discovery does not work'),
+            children: [
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _addressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Desktop name or address',
+                        hintText: 'My-Laptop or 192.168.1.100',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  )
-                : const Icon(Icons.link, size: 18),
-            label: Text(_isConnecting ? 'Connecting...' : 'Connect'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 1,
+                    child: TextField(
+                      controller: _portController,
+                      decoration: const InputDecoration(
+                        labelText: 'Port',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: colorScheme.error, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isConnecting ? null : _connectManually,
+                  icon: _isConnecting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.link, size: 18),
+                  label: Text(_isConnecting
+                      ? 'Connecting...'
+                      : 'Try Advanced Connection'),
+                ),
+              ),
+            ],
           ),
         ),
       ],
