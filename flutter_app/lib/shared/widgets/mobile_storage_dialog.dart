@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/image_cache_service.dart';
+import '../../mobile/services/mobile_offline_storage_service.dart';
 
 /// A dialog for managing mobile storage (cached images and offline sheet music)
 class MobileStorageDialog extends StatefulWidget {
@@ -21,6 +23,7 @@ class _MobileStorageDialogState extends State<MobileStorageDialog> {
   bool _isLoading = true;
   bool _isClearing = false;
   Map<String, dynamic>? _statistics;
+  Map<String, dynamic>? _offlineStatistics;
 
   @override
   void initState() {
@@ -31,10 +34,13 @@ class _MobileStorageDialogState extends State<MobileStorageDialog> {
   Future<void> _loadStatistics() async {
     setState(() => _isLoading = true);
     try {
+      final offlineStorage = context.read<MobileOfflineStorageService>();
       final stats = await ImageCacheService.instance.getStatistics();
+      final offlineStats = await offlineStorage.getOfflineStatistics();
       if (mounted) {
         setState(() {
           _statistics = stats;
+          _offlineStatistics = offlineStats;
           _isLoading = false;
         });
       }
@@ -95,6 +101,48 @@ class _MobileStorageDialogState extends State<MobileStorageDialog> {
     }
   }
 
+  Future<void> _clearOfflineDownloads() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Offline Downloads?'),
+        content: const Text(
+          'This removes all offline sheet music files from this device. '
+          'You can download them again later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() => _isClearing = true);
+      try {
+        await context
+            .read<MobileOfflineStorageService>()
+            .clearAllOfflineDownloads();
+        await _loadStatistics();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Offline downloads removed')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isClearing = false);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -114,6 +162,38 @@ class _MobileStorageDialogState extends State<MobileStorageDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildSection(
+                    context,
+                    title: 'Offline Downloads',
+                    subtitle: 'Saved scores for disconnected use',
+                    icon: Icons.offline_pin_outlined,
+                    children: [
+                      _StatRow(
+                        label: 'Saved Scores',
+                        value: '${_offlineStatistics?['documentCount'] ?? 0}',
+                        detail: 'documents',
+                      ),
+                      const SizedBox(height: 8),
+                      _StatRow(
+                        label: 'Offline Size',
+                        value: _offlineStatistics?['sizeFormatted'] ?? '0 B',
+                        detail:
+                            '${_offlineStatistics?['fileCount'] ?? 0} files',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isClearing ? null : _clearOfflineDownloads,
+                      icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                      label: const Text('Clear Offline Downloads'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 16),
                   _buildSection(
                     context,
                     title: 'Image Cache',

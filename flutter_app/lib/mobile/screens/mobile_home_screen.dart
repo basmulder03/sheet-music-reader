@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/sheet_music_document.dart';
+import '../../core/services/settings_service.dart';
 import '../../shared/widgets/theme_selector_dialog.dart';
 import '../../shared/widgets/mobile_storage_dialog.dart';
+import '../../shared/widgets/sync_backend_settings_dialog.dart';
 import '../../shared/widgets/about_dialog.dart' as app_about;
 import '../widgets/mobile_sync_settings_dialog.dart';
 import '../services/server_discovery_service.dart';
@@ -566,6 +568,21 @@ class _DocumentListTile extends StatelessWidget {
                 _downloadForOffline(context);
               },
             ),
+            if (isOfflineAvailable)
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Remove Offline Copy',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _removeOfflineCopy(context);
+                },
+              ),
             const SizedBox(height: 8),
           ],
         ),
@@ -696,6 +713,21 @@ class _DocumentListTile extends StatelessWidget {
               : 'Saved "${document.title}" with source file for offline use',
         ),
         backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _removeOfflineCopy(BuildContext context) async {
+    final offlineStorage = context.read<MobileOfflineStorageService>();
+    await offlineStorage.removeOfflineDocument(document.id);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Removed offline copy of "${document.title}"'),
       ),
     );
   }
@@ -861,8 +893,9 @@ class _ConnectViewState extends State<_ConnectView> {
       appBar: AppBar(
         title: const Text('Connect to Desktop'),
       ),
-      body: Consumer2<ServerDiscoveryService, MobileConnectionService>(
-        builder: (context, discoveryService, connectionService, _) {
+      body: Consumer3<ServerDiscoveryService, MobileConnectionService,
+          SettingsService>(
+        builder: (context, discoveryService, connectionService, settings, _) {
           // If connected, show connection info
           if (connectionService.isConnected) {
             return _buildConnectedView(connectionService);
@@ -883,7 +916,11 @@ class _ConnectViewState extends State<_ConnectView> {
           }
 
           // Otherwise show discovery UI
-          return _buildDiscoveryView(discoveryService, connectionService);
+          return _buildDiscoveryView(
+            discoveryService,
+            connectionService,
+            settings.syncConnectionMode,
+          );
         },
       ),
     );
@@ -967,12 +1004,33 @@ class _ConnectViewState extends State<_ConnectView> {
   Widget _buildDiscoveryView(
     ServerDiscoveryService discoveryService,
     MobileConnectionService connectionService,
+    SyncConnectionMode syncMode,
   ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Card(
+            child: ListTile(
+              leading: Icon(
+                syncMode == SyncConnectionMode.selfHostedBackend
+                    ? Icons.cloud
+                    : Icons.devices,
+              ),
+              title: const Text('Connection Mode'),
+              subtitle: Text(
+                syncMode == SyncConnectionMode.selfHostedBackend
+                    ? 'Self-hosted backend (setup in Settings)'
+                    : 'Local desktop on same network',
+              ),
+              trailing: TextButton(
+                onPressed: () => SyncBackendSettingsDialog.show(context),
+                child: const Text('Change'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           // Discovery section
           Card(
             child: Padding(
@@ -1292,6 +1350,24 @@ class _SettingsView extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               MobileSyncSettingsDialog.show(context);
+            },
+          ),
+          Consumer<SettingsService>(
+            builder: (context, settings, _) {
+              final modeLabel = settings.syncConnectionMode ==
+                      SyncConnectionMode.selfHostedBackend
+                  ? 'Self-hosted backend'
+                  : 'Local desktop';
+
+              return ListTile(
+                leading: const Icon(Icons.cloud_sync_outlined),
+                title: const Text('Sync Backend Mode'),
+                subtitle: Text(modeLabel),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  SyncBackendSettingsDialog.show(context);
+                },
+              );
             },
           ),
           const Divider(),

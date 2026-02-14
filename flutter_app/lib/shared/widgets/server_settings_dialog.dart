@@ -24,8 +24,11 @@ class ServerSettingsDialog extends StatefulWidget {
 class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
   late TextEditingController _portController;
   late TextEditingController _deviceNameController;
+  late TextEditingController _backendUrlController;
+  late TextEditingController _backendTokenController;
   late bool _autoStartServer;
   late bool _enableMdns;
+  late SyncConnectionMode _syncMode;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -39,8 +42,13 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
     _portController =
         TextEditingController(text: settings.serverPort.toString());
     _deviceNameController = TextEditingController(text: settings.deviceName);
+    _backendUrlController =
+        TextEditingController(text: settings.syncBackendUrl);
+    _backendTokenController =
+        TextEditingController(text: settings.syncBackendToken);
     _autoStartServer = settings.autoStartServer;
     _enableMdns = settings.enableMdns;
+    _syncMode = settings.syncConnectionMode;
 
     _portController.addListener(_onSettingsChanged);
     _deviceNameController.addListener(_onSettingsChanged);
@@ -50,6 +58,8 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
   void dispose() {
     _portController.dispose();
     _deviceNameController.dispose();
+    _backendUrlController.dispose();
+    _backendTokenController.dispose();
     super.dispose();
   }
 
@@ -159,6 +169,9 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
       await settings.setDeviceName(deviceName);
       await settings.setAutoStartServer(_autoStartServer);
       await settings.setEnableMdns(_enableMdns);
+      await settings.setSyncConnectionMode(_syncMode);
+      await settings.setSyncBackendUrl(_backendUrlController.text.trim());
+      await settings.setSyncBackendToken(_backendTokenController.text.trim());
 
       // Restart server if port changed and server was running
       if (needsRestart) {
@@ -264,6 +277,64 @@ class _ServerSettingsDialogState extends State<ServerSettingsDialog> {
                 },
                 contentPadding: EdgeInsets.zero,
               ),
+
+              const SizedBox(height: 12),
+              Text(
+                'Sync Mode',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<SyncConnectionMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: SyncConnectionMode.localDesktop,
+                    icon: Icon(Icons.devices),
+                    label: Text('Local Desktop'),
+                  ),
+                  ButtonSegment(
+                    value: SyncConnectionMode.selfHostedBackend,
+                    icon: Icon(Icons.cloud),
+                    label: Text('Self-hosted'),
+                  ),
+                ],
+                selected: <SyncConnectionMode>{_syncMode},
+                onSelectionChanged: (selection) {
+                  setState(() {
+                    _syncMode = selection.first;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _syncMode == SyncConnectionMode.selfHostedBackend
+                    ? 'Desktop will connect to your self-hosted sync server.'
+                    : 'Desktop will use local network server mode.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              if (_syncMode == SyncConnectionMode.selfHostedBackend) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _backendUrlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Backend URL',
+                    hintText: 'https://sync.example.com',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.link),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _backendTokenController,
+                  decoration: const InputDecoration(
+                    labelText: 'API Token',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.key_outlined),
+                  ),
+                  obscureText: true,
+                ),
+              ],
 
               Theme(
                 data: Theme.of(context)

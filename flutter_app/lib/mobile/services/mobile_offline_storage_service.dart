@@ -134,6 +134,29 @@ class MobileOfflineStorageService extends ChangeNotifier {
     return docs.map((d) => d.id).toSet();
   }
 
+  Future<Map<String, dynamic>> getOfflineStatistics() async {
+    await initialize();
+
+    var totalBytes = 0;
+    var fileCount = 0;
+    await for (final entity in _offlineDirectory!.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final stat = await entity.stat();
+      totalBytes += stat.size;
+      fileCount++;
+    }
+
+    final docs = await getOfflineDocuments();
+    return {
+      'documentCount': docs.length,
+      'fileCount': fileCount,
+      'sizeBytes': totalBytes,
+      'sizeFormatted': _formatBytes(totalBytes),
+    };
+  }
+
   Future<File> saveSourceFile({
     required String documentId,
     required Uint8List bytes,
@@ -194,6 +217,16 @@ class MobileOfflineStorageService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearAllOfflineDownloads() async {
+    await initialize();
+    await for (final entity in _offlineDirectory!.list()) {
+      if (entity is File) {
+        await entity.delete();
+      }
+    }
+    notifyListeners();
+  }
+
   Future<void> _removeExistingSourceFiles(String documentId) async {
     final directory = _offlineDirectory!;
     await for (final entity in directory.list()) {
@@ -250,5 +283,18 @@ class MobileOfflineStorageService extends ChangeNotifier {
     }
 
     return 'bin';
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

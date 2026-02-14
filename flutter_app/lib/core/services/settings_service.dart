@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum SyncConnectionMode {
+  localDesktop,
+  selfHostedBackend,
+}
+
 /// Service for managing application settings
 class SettingsService extends ChangeNotifier {
   // SharedPreferences keys
@@ -10,6 +15,9 @@ class SettingsService extends ChangeNotifier {
   static const _keyServerPort = 'server_port';
   static const _keyEnableMdns = 'enable_mdns';
   static const _keyDeviceName = 'device_name';
+  static const _keySyncConnectionMode = 'sync_connection_mode';
+  static const _keySyncBackendUrl = 'sync_backend_url';
+  static const _keySyncBackendToken = 'sync_backend_token';
 
   ThemeMode _themeMode = ThemeMode.system;
   String _defaultStoragePath = '';
@@ -17,6 +25,9 @@ class SettingsService extends ChangeNotifier {
   int _serverPort = 8080;
   bool _enableMdns = true;
   String _deviceName = 'Sheet Music Reader';
+  SyncConnectionMode _syncConnectionMode = SyncConnectionMode.localDesktop;
+  String _syncBackendUrl = '';
+  String _syncBackendToken = '';
 
   // Getters
   ThemeMode get themeMode => _themeMode;
@@ -25,6 +36,9 @@ class SettingsService extends ChangeNotifier {
   int get serverPort => _serverPort;
   bool get enableMdns => _enableMdns;
   String get deviceName => _deviceName;
+  SyncConnectionMode get syncConnectionMode => _syncConnectionMode;
+  String get syncBackendUrl => _syncBackendUrl;
+  String get syncBackendToken => _syncBackendToken;
 
   // Setters with persistence
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -69,6 +83,27 @@ class SettingsService extends ChangeNotifier {
     await prefs.setString(_keyDeviceName, name);
   }
 
+  Future<void> setSyncConnectionMode(SyncConnectionMode mode) async {
+    _syncConnectionMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keySyncConnectionMode, mode.index);
+  }
+
+  Future<void> setSyncBackendUrl(String url) async {
+    _syncBackendUrl = url;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySyncBackendUrl, url);
+  }
+
+  Future<void> setSyncBackendToken(String token) async {
+    _syncBackendToken = token;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySyncBackendToken, token);
+  }
+
   /// Load settings from storage
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -101,6 +136,21 @@ class SettingsService extends ChangeNotifier {
     final name = prefs.getString(_keyDeviceName);
     if (name != null) {
       _deviceName = name;
+    }
+
+    final modeIndex = prefs.getInt(_keySyncConnectionMode);
+    if (modeIndex != null && modeIndex < SyncConnectionMode.values.length) {
+      _syncConnectionMode = SyncConnectionMode.values[modeIndex];
+    }
+
+    final backendUrl = prefs.getString(_keySyncBackendUrl);
+    if (backendUrl != null) {
+      _syncBackendUrl = backendUrl;
+    }
+
+    final backendToken = prefs.getString(_keySyncBackendToken);
+    if (backendToken != null) {
+      _syncBackendToken = backendToken;
     }
 
     notifyListeners();
