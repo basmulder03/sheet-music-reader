@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/sheet_music_document.dart';
@@ -7,6 +9,7 @@ import '../../desktop/widgets/musicxml_renderer.dart';
 import '../services/mobile_connection_service.dart';
 import '../services/mobile_offline_storage_service.dart';
 import '../widgets/mobile_annotation_widget.dart';
+import 'mobile_pdf_viewer_screen.dart';
 
 class MobileDocumentViewerScreen extends StatefulWidget {
   final SheetMusicDocument document;
@@ -46,6 +49,32 @@ class _MobileDocumentViewerScreenState
       final connectionService = context.read<MobileConnectionService>();
       final offlineStorage = context.read<MobileOfflineStorageService>();
       final musicXmlService = context.read<MusicXmlService>();
+
+      final offlinePdfFile =
+          await offlineStorage.getOfflinePdfFile(widget.document.id);
+      if (offlinePdfFile != null && mounted) {
+        _openPdfViewer(offlinePdfFile, isOffline: true);
+        return;
+      }
+
+      if (connectionService.isConnected) {
+        final sourceFile =
+            await connectionService.getSourceFile(widget.document.id);
+        if (_isPdfSource(sourceFile)) {
+          final savedSource = await offlineStorage.saveSourceFile(
+            documentId: widget.document.id,
+            bytes: sourceFile!.bytes,
+            fileName: sourceFile.fileName,
+            contentType: sourceFile.contentType,
+          );
+
+          if (mounted) {
+            _openPdfViewer(savedSource, isOffline: false);
+            return;
+          }
+        }
+      }
+
       String? musicXmlContent;
 
       if (connectionService.isConnected) {
@@ -77,6 +106,35 @@ class _MobileDocumentViewerScreenState
         _isLoading = false;
       });
     }
+  }
+
+  bool _isPdfSource(DownloadedSourceFile? sourceFile) {
+    if (sourceFile == null) {
+      return false;
+    }
+
+    if (sourceFile.sourceType == 'pdf') {
+      return true;
+    }
+
+    if (sourceFile.contentType.toLowerCase().contains('application/pdf')) {
+      return true;
+    }
+
+    final fileName = sourceFile.fileName?.toLowerCase() ?? '';
+    return fileName.endsWith('.pdf');
+  }
+
+  void _openPdfViewer(File file, {required bool isOffline}) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => MobilePdfViewerScreen(
+          title: widget.document.title,
+          filePath: file.path,
+          isOffline: isOffline,
+        ),
+      ),
+    );
   }
 
   @override

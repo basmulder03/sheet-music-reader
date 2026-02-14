@@ -15,20 +15,21 @@ import 'library_service.dart';
 /// Service for running a local HTTP/WebSocket server for mobile device sync
 class DesktopServerService extends ChangeNotifier {
   final LibraryService _libraryService;
-  
+
   HttpServer? _server;
   MDnsClient? _mdnsClient;
   final List<WebSocketChannel> _wsConnections = [];
-  final Map<WebSocketChannel, Set<String>> _subscriptions = {}; // Track document subscriptions
+  final Map<WebSocketChannel, Set<String>> _subscriptions =
+      {}; // Track document subscriptions
   final Map<WebSocketChannel, DateTime> _lastPingTime = {}; // Track ping times
   bool _isRunning = false;
   int _port = 8080;
   String? _serverAddress;
-  
+
   // Message batching for WebSocket
   final Map<WebSocketChannel, List<Map<String, dynamic>>> _pendingMessages = {};
   Timer? _batchTimer;
-  
+
   DesktopServerService(this._libraryService);
 
   // Getters
@@ -55,10 +56,10 @@ class DesktopServerService extends ChangeNotifier {
     try {
       // Get local IP address
       _serverAddress = await _getLocalIpAddress();
-      
+
       // Create and configure router
       final router = _createRouter();
-      
+
       // Add middleware
       final handler = const shelf.Pipeline()
           .addMiddleware(shelf.logRequests())
@@ -69,7 +70,7 @@ class DesktopServerService extends ChangeNotifier {
       HttpServer? server;
       int portToUse = _port;
       SocketException? lastError;
-      
+
       // Try the configured port first, then try a few alternatives
       for (int attempt = 0; attempt < 5; attempt++) {
         try {
@@ -87,26 +88,26 @@ class DesktopServerService extends ChangeNotifier {
           portToUse++;
         }
       }
-      
+
       if (server == null) {
         throw lastError ?? SocketException('Failed to bind to any port');
       }
-      
+
       _server = server;
       _port = portToUse; // Update to the actual port used
 
       _isRunning = true;
-      
+
       // Start message batching timer
       _startBatchTimer();
-      
+
       if (kDebugMode) {
         print('Server running on http://$_serverAddress:$_port');
       }
 
       // Start mDNS advertisement
       await _startMdnsAdvertisement();
-      
+
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
@@ -124,7 +125,7 @@ class DesktopServerService extends ChangeNotifier {
       // Stop batch timer
       _batchTimer?.cancel();
       _batchTimer = null;
-      
+
       // Close all WebSocket connections
       for (final ws in _wsConnections) {
         await ws.sink.close();
@@ -143,11 +144,11 @@ class DesktopServerService extends ChangeNotifier {
 
       _isRunning = false;
       _serverAddress = null;
-      
+
       if (kDebugMode) {
         print('Server stopped');
       }
-      
+
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
@@ -164,7 +165,8 @@ class DesktopServerService extends ChangeNotifier {
     // Health check
     router.get('/api/health', (shelf.Request request) {
       return shelf.Response.ok(
-        json.encode({'status': 'ok', 'timestamp': DateTime.now().toIso8601String()}),
+        json.encode(
+            {'status': 'ok', 'timestamp': DateTime.now().toIso8601String()}),
         headers: {'Content-Type': 'application/json'},
       );
     });
@@ -173,18 +175,20 @@ class DesktopServerService extends ChangeNotifier {
     router.get('/api/documents', (shelf.Request request) async {
       final pageParam = request.url.queryParameters['page'];
       final pageSizeParam = request.url.queryParameters['pageSize'];
-      
+
       // If pagination parameters are provided, use paginated response
       if (pageParam != null && pageSizeParam != null) {
         final page = int.tryParse(pageParam) ?? 0;
         final pageSize = int.tryParse(pageSizeParam) ?? 20;
-        
-        final documents = await _libraryService.databaseService.getDocumentsPage(
+
+        final documents =
+            await _libraryService.databaseService.getDocumentsPage(
           page: page,
           pageSize: pageSize,
         );
-        final totalCount = await _libraryService.databaseService.getDocumentCount();
-        
+        final totalCount =
+            await _libraryService.databaseService.getDocumentCount();
+
         return shelf.Response.ok(
           json.encode({
             'documents': documents.map((d) => _documentToJson(d)).toList(),
@@ -196,7 +200,7 @@ class DesktopServerService extends ChangeNotifier {
           headers: {'Content-Type': 'application/json'},
         );
       }
-      
+
       // Default: return all loaded documents
       final documents = _libraryService.documents;
       return shelf.Response.ok(
@@ -210,10 +214,9 @@ class DesktopServerService extends ChangeNotifier {
 
     // Get specific document
     router.get('/api/documents/<id>', (shelf.Request request, String id) async {
-      final document = _libraryService.documents
-          .where((d) => d.id == id)
-          .firstOrNull;
-      
+      final document =
+          _libraryService.documents.where((d) => d.id == id).firstOrNull;
+
       if (document == null) {
         return shelf.Response.notFound(
           json.encode({'error': 'Document not found'}),
@@ -227,11 +230,11 @@ class DesktopServerService extends ChangeNotifier {
     });
 
     // Get document MusicXML file
-    router.get('/api/documents/<id>/musicxml', (shelf.Request request, String id) async {
-      final document = _libraryService.documents
-          .where((d) => d.id == id)
-          .firstOrNull;
-      
+    router.get('/api/documents/<id>/musicxml',
+        (shelf.Request request, String id) async {
+      final document =
+          _libraryService.documents.where((d) => d.id == id).firstOrNull;
+
       if (document == null) {
         return shelf.Response.notFound(
           json.encode({'error': 'Document not found'}),
@@ -258,8 +261,55 @@ class DesktopServerService extends ChangeNotifier {
       }
     });
 
+    // Get original source file (PDF/image) if available
+    router.get('/api/documents/<id>/source',
+        (shelf.Request request, String id) async {
+      final document =
+          _libraryService.documents.where((d) => d.id == id).firstOrNull;
+
+      if (document == null) {
+        return shelf.Response.notFound(
+          json.encode({'error': 'Document not found'}),
+        );
+      }
+
+      final sourcePath = document.sourcePath;
+      if (sourcePath == null || sourcePath.isEmpty) {
+        return shelf.Response.notFound(
+          json.encode({'error': 'Source file not available'}),
+        );
+      }
+
+      try {
+        final file = File(sourcePath);
+        if (!await file.exists()) {
+          return shelf.Response.notFound(
+            json.encode({'error': 'Source file not found'}),
+          );
+        }
+
+        final fileName = sourcePath.split(Platform.pathSeparator).last;
+        final extension = _fileExtension(sourcePath);
+        final mimeType = _mimeTypeForExtension(extension);
+
+        return shelf.Response.ok(
+          file.openRead(),
+          headers: {
+            'Content-Type': mimeType,
+            'Content-Disposition': 'attachment; filename="$fileName"',
+            'X-Source-Type': _sourceTypeFromPath(sourcePath),
+          },
+        );
+      } catch (e) {
+        return shelf.Response.internalServerError(
+          body: json.encode({'error': 'Failed to read source file: $e'}),
+        );
+      }
+    });
+
     // Get document annotations
-    router.get('/api/documents/<id>/annotations', (shelf.Request request, String id) async {
+    router.get('/api/documents/<id>/annotations',
+        (shelf.Request request, String id) async {
       final annotations = _libraryService.getAnnotations(id);
       return shelf.Response.ok(
         json.encode({
@@ -270,11 +320,12 @@ class DesktopServerService extends ChangeNotifier {
     });
 
     // Add annotation
-    router.post('/api/documents/<id>/annotations', (shelf.Request request, String id) async {
+    router.post('/api/documents/<id>/annotations',
+        (shelf.Request request, String id) async {
       try {
         final payload = await request.readAsString();
         final data = json.decode(payload) as Map<String, dynamic>;
-        
+
         final annotation = Annotation(
           id: data['id'] as String,
           documentId: id,
@@ -289,7 +340,7 @@ class DesktopServerService extends ChangeNotifier {
             (data['position']['dx'] as num).toDouble(),
             (data['position']['dy'] as num).toDouble(),
           ),
-          size: data['size'] != null 
+          size: data['size'] != null
               ? Size(
                   (data['size']['width'] as num).toDouble(),
                   (data['size']['height'] as num).toDouble(),
@@ -299,7 +350,7 @@ class DesktopServerService extends ChangeNotifier {
         );
 
         await _libraryService.addAnnotation(id, annotation);
-        
+
         // Broadcast to WebSocket clients
         _broadcastUpdate({
           'type': 'annotation_added',
@@ -328,19 +379,21 @@ class DesktopServerService extends ChangeNotifier {
       final query = request.url.queryParameters['q'] ?? '';
       final pageParam = request.url.queryParameters['page'];
       final pageSizeParam = request.url.queryParameters['pageSize'];
-      
+
       // If pagination parameters are provided, use paginated search
       if (pageParam != null && pageSizeParam != null) {
         final page = int.tryParse(pageParam) ?? 0;
         final pageSize = int.tryParse(pageSizeParam) ?? 20;
-        
-        final results = await _libraryService.databaseService.searchDocumentsPage(
+
+        final results =
+            await _libraryService.databaseService.searchDocumentsPage(
           query: query,
           page: page,
           pageSize: pageSize,
         );
-        final totalCount = await _libraryService.databaseService.getSearchCount(query);
-        
+        final totalCount =
+            await _libraryService.databaseService.getSearchCount(query);
+
         return shelf.Response.ok(
           json.encode({
             'results': results.map((d) => _documentToJson(d)).toList(),
@@ -352,7 +405,7 @@ class DesktopServerService extends ChangeNotifier {
           headers: {'Content-Type': 'application/json'},
         );
       }
-      
+
       // Default: return all search results from memory
       final results = _libraryService.search(query);
       return shelf.Response.ok(
@@ -385,7 +438,8 @@ class DesktopServerService extends ChangeNotifier {
     notifyListeners();
 
     if (kDebugMode) {
-      print('WebSocket client connected. Total connections: ${_wsConnections.length}');
+      print(
+          'WebSocket client connected. Total connections: ${_wsConnections.length}');
     }
 
     // Send welcome message with server capabilities
@@ -419,7 +473,8 @@ class DesktopServerService extends ChangeNotifier {
       onDone: () {
         _cleanupWebSocketConnection(webSocket);
         if (kDebugMode) {
-          print('WebSocket client disconnected. Total connections: ${_wsConnections.length}');
+          print(
+              'WebSocket client disconnected. Total connections: ${_wsConnections.length}');
         }
       },
       onError: (error) {
@@ -441,7 +496,8 @@ class DesktopServerService extends ChangeNotifier {
   }
 
   /// Handle incoming WebSocket messages
-  void _handleWebSocketMessage(WebSocketChannel webSocket, Map<String, dynamic> data) {
+  void _handleWebSocketMessage(
+      WebSocketChannel webSocket, Map<String, dynamic> data) {
     final messageType = data['type'] as String?;
     _lastPingTime[webSocket] = DateTime.now();
 
@@ -465,7 +521,7 @@ class DesktopServerService extends ChangeNotifier {
             'type': 'subscribed',
             'documentIds': documentIds,
           });
-          
+
           if (kDebugMode) {
             print('Client subscribed to ${documentIds.length} documents');
           }
@@ -491,7 +547,7 @@ class DesktopServerService extends ChangeNotifier {
         final page = data['page'] as int? ?? 0;
         final pageSize = data['pageSize'] as int? ?? 20;
         final includeMetadataOnly = data['metadataOnly'] as bool? ?? false;
-        
+
         _handleSyncRequest(webSocket, page, pageSize, includeMetadataOnly);
         break;
 
@@ -499,7 +555,8 @@ class DesktopServerService extends ChangeNotifier {
         // Request only metadata for specific documents (lightweight)
         final documentIds = data['documentIds'] as List<dynamic>?;
         if (documentIds != null) {
-          _handleMetadataRequest(webSocket, documentIds.map((e) => e.toString()).toList());
+          _handleMetadataRequest(
+              webSocket, documentIds.map((e) => e.toString()).toList());
         }
         break;
 
@@ -523,8 +580,9 @@ class DesktopServerService extends ChangeNotifier {
         page: page,
         pageSize: pageSize,
       );
-      final totalCount = await _libraryService.databaseService.getDocumentCount();
-      
+      final totalCount =
+          await _libraryService.databaseService.getDocumentCount();
+
       final docData = docs.map((d) {
         if (metadataOnly) {
           // Send only lightweight metadata
@@ -548,7 +606,7 @@ class DesktopServerService extends ChangeNotifier {
         'hasMore': (page + 1) * pageSize < totalCount,
         'metadataOnly': metadataOnly,
       });
-      
+
       if (kDebugMode) {
         print('Sent sync response: page $page, ${docs.length} documents');
       }
@@ -564,19 +622,24 @@ class DesktopServerService extends ChangeNotifier {
   }
 
   /// Handle metadata-only request for specific documents
-  void _handleMetadataRequest(WebSocketChannel webSocket, List<String> documentIds) {
-    final metadata = documentIds.map((id) {
-      final doc = _libraryService.documents.where((d) => d.id == id).firstOrNull;
-      if (doc != null) {
-        return {
-          'id': doc.id,
-          'title': doc.title,
-          'composer': doc.composer,
-          'modifiedAt': doc.modifiedAt.toIso8601String(),
-        };
-      }
-      return null;
-    }).whereType<Map<String, dynamic>>().toList();
+  void _handleMetadataRequest(
+      WebSocketChannel webSocket, List<String> documentIds) {
+    final metadata = documentIds
+        .map((id) {
+          final doc =
+              _libraryService.documents.where((d) => d.id == id).firstOrNull;
+          if (doc != null) {
+            return {
+              'id': doc.id,
+              'title': doc.title,
+              'composer': doc.composer,
+              'modifiedAt': doc.modifiedAt.toIso8601String(),
+            };
+          }
+          return null;
+        })
+        .whereType<Map<String, dynamic>>()
+        .toList();
 
     _queueMessage(webSocket, {
       'type': 'metadata_response',
@@ -590,7 +653,7 @@ class DesktopServerService extends ChangeNotifier {
       _pendingMessages[webSocket] = [];
     }
     _pendingMessages[webSocket]!.add(message);
-    
+
     // For high-priority messages, flush immediately
     if (message['type'] == 'pong' || message['type'] == 'error') {
       _flushMessages(webSocket);
@@ -667,11 +730,11 @@ class DesktopServerService extends ChangeNotifier {
       // Note: The multicast_dns package has limited support for service registration.
       // For full mDNS/Bonjour service advertisement, platform-specific implementations
       // would be needed (Avahi on Linux, Bonjour on Windows/macOS).
-      // 
+      //
       // For now, mobile clients can:
       // 1. Use mDNS discovery to find the service type: _sheet-music-reader._tcp
       // 2. Manually enter the server address shown in the UI
-      // 
+      //
       // Service information that would be advertised:
       // - Service Type: _sheet-music-reader._tcp
       // - Port: $_port
@@ -679,12 +742,13 @@ class DesktopServerService extends ChangeNotifier {
       //   - version=0.1.0
       //   - api=/api
       //   - ws=/ws
-      
+
       if (kDebugMode) {
         print('mDNS client started');
         print('Service: _sheet-music-reader._tcp.local');
         print('Port: $_port');
-        print('For full service discovery, mobile clients should scan for $_serverAddress:$_port');
+        print(
+            'For full service discovery, mobile clients should scan for $_serverAddress:$_port');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -718,7 +782,7 @@ class DesktopServerService extends ChangeNotifier {
           // Skip loopback
           if (addr.address == '127.0.0.1') continue;
           // Prefer addresses starting with 192.168 or 10.
-          if (addr.address.startsWith('192.168') || 
+          if (addr.address.startsWith('192.168') ||
               addr.address.startsWith('10.')) {
             return addr.address;
           }
@@ -746,7 +810,6 @@ class DesktopServerService extends ChangeNotifier {
   /// Broadcast update to all WebSocket clients (with subscription filtering)
   void _broadcastUpdate(Map<String, dynamic> message) {
     final documentId = message['documentId'] as String?;
-    final data = json.encode(message);
     final closedConnections = <WebSocketChannel>[];
 
     for (final ws in _wsConnections) {
@@ -758,7 +821,7 @@ class DesktopServerService extends ChangeNotifier {
             continue; // Skip this client
           }
         }
-        
+
         // Queue message instead of sending immediately
         _queueMessage(ws, message);
       } catch (e) {
@@ -774,13 +837,18 @@ class DesktopServerService extends ChangeNotifier {
     if (closedConnections.isNotEmpty) {
       notifyListeners();
     }
-    
+
     // Flush messages immediately for broadcasts
     _flushAllMessages();
   }
 
   /// Convert document to JSON
   Map<String, dynamic> _documentToJson(SheetMusicDocument doc) {
+    final sourceType = _sourceTypeFromPath(doc.sourcePath);
+    final sourceFileName = doc.sourcePath == null
+        ? null
+        : doc.sourcePath!.split(Platform.pathSeparator).last;
+
     return {
       'id': doc.id,
       'title': doc.title,
@@ -788,6 +856,8 @@ class DesktopServerService extends ChangeNotifier {
       'arranger': doc.arranger,
       'musicXmlPath': doc.musicXmlPath,
       'sourcePath': doc.sourcePath,
+      'sourceType': sourceType,
+      'sourceFileName': sourceFileName,
       'tags': doc.tags,
       'metadata': {
         'pageCount': doc.metadata.pageCount,
@@ -800,6 +870,48 @@ class DesktopServerService extends ChangeNotifier {
       'createdAt': doc.createdAt.toIso8601String(),
       'modifiedAt': doc.modifiedAt.toIso8601String(),
     };
+  }
+
+  String _sourceTypeFromPath(String? sourcePath) {
+    if (sourcePath == null || sourcePath.isEmpty) {
+      return 'unknown';
+    }
+
+    final ext = _fileExtension(sourcePath);
+    if (ext == 'pdf') {
+      return 'pdf';
+    }
+
+    if (ext == 'png' || ext == 'jpg' || ext == 'jpeg' || ext == 'webp') {
+      return 'image';
+    }
+
+    return 'unknown';
+  }
+
+  String _fileExtension(String filePath) {
+    final normalized = filePath.toLowerCase();
+    final index = normalized.lastIndexOf('.');
+    if (index < 0 || index == normalized.length - 1) {
+      return '';
+    }
+    return normalized.substring(index + 1);
+  }
+
+  String _mimeTypeForExtension(String extension) {
+    switch (extension) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   /// Convert annotation to JSON

@@ -58,4 +58,88 @@ class MobileOfflineStorageService extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<File> saveSourceFile({
+    required String documentId,
+    required Uint8List bytes,
+    String? fileName,
+    String? contentType,
+  }) async {
+    await initialize();
+    await _removeExistingSourceFiles(documentId);
+
+    final extension =
+        _determineExtension(fileName: fileName, contentType: contentType);
+    final file = File(
+        path.join(_offlineDirectory!.path, '$documentId.source.$extension'));
+    await file.writeAsBytes(bytes, flush: true);
+    notifyListeners();
+    return file;
+  }
+
+  Future<File?> getOfflinePdfFile(String documentId) async {
+    await initialize();
+    final file =
+        File(path.join(_offlineDirectory!.path, '$documentId.source.pdf'));
+    if (await file.exists()) {
+      return file;
+    }
+    return null;
+  }
+
+  Future<File?> getOfflineSourceFile(String documentId) async {
+    await initialize();
+    final directory = _offlineDirectory!;
+    await for (final entity in directory.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final name = path.basename(entity.path);
+      if (name.startsWith('$documentId.source.')) {
+        return entity;
+      }
+    }
+    return null;
+  }
+
+  Future<void> removeOfflineSource(String documentId) async {
+    await initialize();
+    await _removeExistingSourceFiles(documentId);
+    notifyListeners();
+  }
+
+  Future<void> _removeExistingSourceFiles(String documentId) async {
+    final directory = _offlineDirectory!;
+    await for (final entity in directory.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final name = path.basename(entity.path);
+      if (name.startsWith('$documentId.source.')) {
+        await entity.delete();
+      }
+    }
+  }
+
+  String _determineExtension({String? fileName, String? contentType}) {
+    if (fileName != null && fileName.contains('.')) {
+      return fileName.split('.').last.toLowerCase();
+    }
+
+    final type = contentType?.toLowerCase() ?? '';
+    if (type.contains('pdf')) {
+      return 'pdf';
+    }
+    if (type.contains('png')) {
+      return 'png';
+    }
+    if (type.contains('jpeg') || type.contains('jpg')) {
+      return 'jpg';
+    }
+    if (type.contains('webp')) {
+      return 'webp';
+    }
+
+    return 'bin';
+  }
 }

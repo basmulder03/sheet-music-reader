@@ -15,6 +15,20 @@ enum ConnectionStatus {
   error,
 }
 
+class DownloadedSourceFile {
+  const DownloadedSourceFile({
+    required this.bytes,
+    required this.contentType,
+    this.fileName,
+    this.sourceType,
+  });
+
+  final Uint8List bytes;
+  final String contentType;
+  final String? fileName;
+  final String? sourceType;
+}
+
 /// Service for managing connection to desktop server
 class MobileConnectionService extends ChangeNotifier {
   DiscoveredServer? _connectedServer;
@@ -23,14 +37,14 @@ class MobileConnectionService extends ChangeNotifier {
   String? _errorMessage;
   final List<SheetMusicDocument> _documents = [];
   bool _isSyncing = false;
-  
+
   // Pagination state
   int _currentPage = 0;
   int _pageSize = 20;
   bool _hasMoreDocuments = true;
   bool _isLoadingMore = false;
   int? _totalDocumentCount;
-  
+
   // Network optimizer for debouncing
   final NetworkRequestOptimizer _optimizer = NetworkRequestOptimizer.instance;
 
@@ -71,11 +85,11 @@ class MobileConnectionService extends ChangeNotifier {
         await syncDocuments();
 
         notifyListeners();
-        
+
         if (kDebugMode) {
           print('Connected to server: ${server.url}');
         }
-        
+
         return true;
       } else {
         throw Exception('Server returned status ${response.statusCode}');
@@ -85,11 +99,11 @@ class MobileConnectionService extends ChangeNotifier {
       _errorMessage = 'Failed to connect: $e';
       _connectedServer = null;
       notifyListeners();
-      
+
       if (kDebugMode) {
         print('Connection error: $e');
       }
-      
+
       return false;
     }
   }
@@ -186,7 +200,8 @@ class MobileConnectionService extends ChangeNotifier {
           _documents.clear();
           for (final docData in docsData) {
             try {
-              _documents.add(SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+              _documents.add(
+                  SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
             } catch (e) {
               if (kDebugMode) {
                 print('Error parsing document: $e');
@@ -238,13 +253,14 @@ class MobileConnectionService extends ChangeNotifier {
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
+          .get(Uri.parse(
+              '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final docsData = data['documents'] as List<dynamic>;
-        
+
         // Get pagination info
         _totalDocumentCount = data['totalCount'] as int?;
         _hasMoreDocuments = data['hasMore'] as bool? ?? false;
@@ -252,7 +268,8 @@ class MobileConnectionService extends ChangeNotifier {
         _documents.clear();
         for (final docData in docsData) {
           try {
-            _documents.add(SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+            _documents.add(
+                SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
           } catch (e) {
             if (kDebugMode) {
               print('Error parsing document: $e');
@@ -261,7 +278,8 @@ class MobileConnectionService extends ChangeNotifier {
         }
 
         if (kDebugMode) {
-          print('Synced ${_documents.length} documents (total: $_totalDocumentCount)');
+          print(
+              'Synced ${_documents.length} documents (total: $_totalDocumentCount)');
         }
       } else {
         throw Exception('Server returned status ${response.statusCode}');
@@ -279,9 +297,9 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Load next page of documents
   Future<void> loadNextPage() async {
-    if (!isConnected || 
-        _connectedServer == null || 
-        _isLoadingMore || 
+    if (!isConnected ||
+        _connectedServer == null ||
+        _isLoadingMore ||
         !_hasMoreDocuments) {
       return;
     }
@@ -292,13 +310,14 @@ class MobileConnectionService extends ChangeNotifier {
     try {
       _currentPage++;
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
+          .get(Uri.parse(
+              '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final docsData = data['documents'] as List<dynamic>;
-        
+
         // Update pagination info
         _totalDocumentCount = data['totalCount'] as int?;
         _hasMoreDocuments = data['hasMore'] as bool? ?? false;
@@ -306,7 +325,8 @@ class MobileConnectionService extends ChangeNotifier {
         // Add new documents
         for (final docData in docsData) {
           try {
-            _documents.add(SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+            _documents.add(
+                SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
           } catch (e) {
             if (kDebugMode) {
               print('Error parsing document: $e');
@@ -315,7 +335,8 @@ class MobileConnectionService extends ChangeNotifier {
         }
 
         if (kDebugMode) {
-          print('Loaded page $_currentPage: ${_documents.length}/$_totalDocumentCount documents');
+          print(
+              'Loaded page $_currentPage: ${_documents.length}/$_totalDocumentCount documents');
         }
       } else {
         throw Exception('Server returned status ${response.statusCode}');
@@ -337,7 +358,8 @@ class MobileConnectionService extends ChangeNotifier {
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents/$documentId/musicxml'))
+          .get(Uri.parse(
+              '${_connectedServer!.url}/api/documents/$documentId/musicxml'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -353,13 +375,52 @@ class MobileConnectionService extends ChangeNotifier {
     }
   }
 
+  /// Download original source file (PDF/image) for a document.
+  Future<DownloadedSourceFile?> getSourceFile(String documentId) async {
+    if (!isConnected || _connectedServer == null) return null;
+
+    try {
+      final response = await http
+          .get(Uri.parse(
+              '${_connectedServer!.url}/api/documents/$documentId/source'))
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final disposition = response.headers['content-disposition'];
+      String? fileName;
+      if (disposition != null) {
+        final parts = disposition.split('filename=');
+        if (parts.length > 1) {
+          fileName = parts.last.replaceAll('"', '').trim();
+        }
+      }
+
+      return DownloadedSourceFile(
+        bytes: response.bodyBytes,
+        contentType:
+            response.headers['content-type'] ?? 'application/octet-stream',
+        fileName: fileName,
+        sourceType: response.headers['x-source-type'],
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching source file: $e');
+      }
+      return null;
+    }
+  }
+
   /// Get annotations for a document
   Future<List<Annotation>> getAnnotations(String documentId) async {
     if (!isConnected || _connectedServer == null) return [];
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents/$documentId/annotations'))
+          .get(Uri.parse(
+              '${_connectedServer!.url}/api/documents/$documentId/annotations'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -385,11 +446,14 @@ class MobileConnectionService extends ChangeNotifier {
     if (!isConnected || _connectedServer == null) return false;
 
     try {
-      final response = await http.post(
-        Uri.parse('${_connectedServer!.url}/api/documents/$documentId/annotations'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(annotation.toJson()),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse(
+                '${_connectedServer!.url}/api/documents/$documentId/annotations'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(annotation.toJson()),
+          )
+          .timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -401,7 +465,8 @@ class MobileConnectionService extends ChangeNotifier {
   }
 
   /// Search documents (with pagination support)
-  Future<List<SheetMusicDocument>> search(String query, {int page = 0, int pageSize = 20}) async {
+  Future<List<SheetMusicDocument>> search(String query,
+      {int page = 0, int pageSize = 20}) async {
     if (!isConnected || _connectedServer == null) return [];
 
     try {

@@ -598,9 +598,23 @@ class _DocumentListTile extends StatelessWidget {
     await offlineStorage.saveMusicXml(
         documentId: document.id, musicXml: musicXml);
 
+    final sourceFile = await connectionService.getSourceFile(document.id);
+    if (sourceFile != null) {
+      await offlineStorage.saveSourceFile(
+        documentId: document.id,
+        bytes: sourceFile.bytes,
+        fileName: sourceFile.fileName,
+        contentType: sourceFile.contentType,
+      );
+    }
+
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Saved "${document.title}" for offline use'),
+        content: Text(
+          sourceFile == null
+              ? 'Saved "${document.title}" for offline use'
+              : 'Saved "${document.title}" with source file for offline use',
+        ),
         backgroundColor: Colors.green,
       ),
     );
