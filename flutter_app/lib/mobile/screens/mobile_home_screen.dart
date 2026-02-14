@@ -901,6 +901,11 @@ class _ConnectViewState extends State<_ConnectView> {
             return _buildConnectedView(connectionService);
           }
 
+          if (settings.syncConnectionMode ==
+              SyncConnectionMode.selfHostedBackend) {
+            return _buildSelfHostedConnectView(connectionService, settings);
+          }
+
           // If connecting, show loading
           if (connectionService.status == ConnectionStatus.connecting) {
             return const Center(
@@ -1217,6 +1222,96 @@ class _ConnectViewState extends State<_ConnectView> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelfHostedConnectView(
+    MobileConnectionService connectionService,
+    SettingsService settings,
+  ) {
+    final hasUrl = settings.syncBackendUrl.trim().isNotEmpty;
+    final hasToken = settings.syncBackendToken.trim().isNotEmpty;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.cloud,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Self-hosted Backend',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    hasUrl
+                        ? settings.syncBackendUrl
+                        : 'No backend URL configured yet.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontFamily: hasUrl ? 'monospace' : null,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasToken ? 'API token configured' : 'API token missing',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: hasToken
+                              ? Colors.green
+                              : Theme.of(context).colorScheme.error,
+                        ),
+                  ),
+                  if (connectionService.errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      connectionService.errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: hasUrl
+                          ? () => connectionService.connectToConfiguredBackend()
+                          : null,
+                      icon: const Icon(Icons.cloud_done_outlined),
+                      label: const Text('Connect to Backend'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => SyncBackendSettingsDialog.show(context),
+                      icon: const Icon(Icons.settings_outlined),
+                      label: const Text('Edit Backend Settings'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

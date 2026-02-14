@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/models/sheet_music_document.dart';
 import '../../core/services/network_request_optimizer.dart';
+import '../../core/services/settings_service.dart';
 import 'server_discovery_service.dart';
 
 /// Connection status
@@ -47,6 +48,51 @@ class MobileConnectionService extends ChangeNotifier {
 
   // Network optimizer for debouncing
   final NetworkRequestOptimizer _optimizer = NetworkRequestOptimizer.instance;
+  SettingsService? _settingsService;
+
+  void updateSettingsService(SettingsService settingsService) {
+    _settingsService = settingsService;
+  }
+
+  bool get _isSelfHostedMode =>
+      _settingsService?.syncConnectionMode ==
+      SyncConnectionMode.selfHostedBackend;
+
+  String get _baseUrl {
+    if (_isSelfHostedMode) {
+      final configured = _normalizeBackendUrl(
+        (_settingsService?.syncBackendUrl ?? '').trim(),
+      );
+      return configured.endsWith('/')
+          ? configured.substring(0, configured.length - 1)
+          : configured;
+    }
+    return _connectedServer?.url ?? '';
+  }
+
+  String _normalizeBackendUrl(String raw) {
+    if (raw.isEmpty) {
+      return raw;
+    }
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return raw;
+    }
+    return 'http://$raw';
+  }
+
+  Map<String, String> get _authHeaders {
+    if (!_isSelfHostedMode) {
+      return const <String, String>{};
+    }
+
+    final token = (_settingsService?.syncBackendToken ?? '').trim();
+    if (token.isEmpty) {
+      return const <String, String>{};
+    }
+
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
 
   // Getters
   DiscoveredServer? get connectedServer => _connectedServer;
@@ -61,6 +107,10 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Connect to a discovered server
   Future<bool> connect(DiscoveredServer server) async {
+    if (_isSelfHostedMode) {
+      return connectToConfiguredBackend();
+    }
+
     if (_status == ConnectionStatus.connecting) return false;
 
     _status = ConnectionStatus.connecting;
@@ -108,6 +158,59 @@ class MobileConnectionService extends ChangeNotifier {
     }
   }
 
+  /// Connect using configured self-hosted backend settings.
+  Future<bool> connectToConfiguredBackend() async {
+    if (_status == ConnectionStatus.connecting) return false;
+
+    final backendUrl = (_settingsService?.syncBackendUrl ?? '').trim();
+    if (backendUrl.isEmpty) {
+      _status = ConnectionStatus.error;
+      _errorMessage = 'Set a backend URL in Settings first.';
+      notifyListeners();
+      return false;
+    }
+
+    _status = ConnectionStatus.connecting;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/v1/health'),
+            headers: _authHeaders,
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) {
+        throw Exception('Backend returned status ${response.statusCode}');
+      }
+
+      final uri = Uri.parse(_baseUrl);
+      _connectedServer = DiscoveredServer(
+        name: 'Self-hosted Backend',
+        address: uri.host,
+        port: uri.hasPort
+            ? uri.port
+            : (uri.scheme.toLowerCase() == 'https' ? 443 : 80),
+        discoveredAt: DateTime.now(),
+      );
+      _status = ConnectionStatus.connected;
+      _errorMessage = null;
+
+      await syncDocuments();
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _status = ConnectionStatus.error;
+      _errorMessage = 'Failed to connect to backend: $e';
+      _connectedServer = null;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Disconnect from the server
   Future<void> disconnect() async {
     if (_status == ConnectionStatus.disconnected) return;
@@ -134,6 +237,10 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Connect to WebSocket for real-time updates
   Future<void> _connectWebSocket() async {
+    if (_isSelfHostedMode) {
+      return;
+    }
+
     if (_connectedServer == null) return;
 
     try {
@@ -253,23 +360,30 @@ class MobileConnectionService extends ChangeNotifier {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
+          .get(
+            Uri.parse(_isSelfHostedMode
+                ? '$_baseUrl/v1/documents?limit=$_pageSize'
+                : '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final docsData = data['documents'] as List<dynamic>;
 
-        // Get pagination info
-        _totalDocumentCount = data['totalCount'] as int?;
-        _hasMoreDocuments = data['hasMore'] as bool? ?? false;
+        if (_isSelfHostedMode) {
+          _totalDocumentCount = docsData.length;
+          _hasMoreDocuments = false;
+        } else {
+          _totalDocumentCount = data['totalCount'] as int?;
+          _hasMoreDocuments = data['hasMore'] as bool? ?? false;
+        }
 
         _documents.clear();
         for (final docData in docsData) {
           try {
-            _documents.add(
-                SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+            _documents.add(_parseDocument(docData as Map<String, dynamic>));
           } catch (e) {
             if (kDebugMode) {
               print('Error parsing document: $e');
@@ -297,6 +411,10 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Load next page of documents
   Future<void> loadNextPage() async {
+    if (_isSelfHostedMode) {
+      return;
+    }
+
     if (!isConnected ||
         _connectedServer == null ||
         _isLoadingMore ||
@@ -310,8 +428,11 @@ class MobileConnectionService extends ChangeNotifier {
     try {
       _currentPage++;
       final response = await http
-          .get(Uri.parse(
-              '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'))
+          .get(
+            Uri.parse(
+                '${_connectedServer!.url}/api/documents?page=$_currentPage&pageSize=$_pageSize'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -325,8 +446,7 @@ class MobileConnectionService extends ChangeNotifier {
         // Add new documents
         for (final docData in docsData) {
           try {
-            _documents.add(
-                SheetMusicDocument.fromJson(docData as Map<String, dynamic>));
+            _documents.add(_parseDocument(docData as Map<String, dynamic>));
           } catch (e) {
             if (kDebugMode) {
               print('Error parsing document: $e');
@@ -358,8 +478,12 @@ class MobileConnectionService extends ChangeNotifier {
 
     try {
       final response = await http
-          .get(Uri.parse(
-              '${_connectedServer!.url}/api/documents/$documentId/musicxml'))
+          .get(
+            Uri.parse(_isSelfHostedMode
+                ? '$_baseUrl/v1/documents/$documentId/artifacts/musicxml'
+                : '${_connectedServer!.url}/api/documents/$documentId/musicxml'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -380,10 +504,32 @@ class MobileConnectionService extends ChangeNotifier {
     if (!isConnected || _connectedServer == null) return null;
 
     try {
-      final response = await http
-          .get(Uri.parse(
-              '${_connectedServer!.url}/api/documents/$documentId/source'))
-          .timeout(const Duration(seconds: 20));
+      http.Response response;
+      if (_isSelfHostedMode) {
+        response = await http
+            .get(
+              Uri.parse('$_baseUrl/v1/documents/$documentId/artifacts/pdf'),
+              headers: _authHeaders,
+            )
+            .timeout(const Duration(seconds: 20));
+
+        if (response.statusCode != 200) {
+          response = await http
+              .get(
+                Uri.parse('$_baseUrl/v1/documents/$documentId/artifacts/image'),
+                headers: _authHeaders,
+              )
+              .timeout(const Duration(seconds: 20));
+        }
+      } else {
+        response = await http
+            .get(
+              Uri.parse(
+                  '${_connectedServer!.url}/api/documents/$documentId/source'),
+              headers: _authHeaders,
+            )
+            .timeout(const Duration(seconds: 20));
+      }
 
       if (response.statusCode != 200) {
         return null;
@@ -415,12 +561,19 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Get annotations for a document
   Future<List<Annotation>> getAnnotations(String documentId) async {
+    if (_isSelfHostedMode) {
+      return [];
+    }
+
     if (!isConnected || _connectedServer == null) return [];
 
     try {
       final response = await http
-          .get(Uri.parse(
-              '${_connectedServer!.url}/api/documents/$documentId/annotations'))
+          .get(
+            Uri.parse(
+                '${_connectedServer!.url}/api/documents/$documentId/annotations'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -443,6 +596,10 @@ class MobileConnectionService extends ChangeNotifier {
 
   /// Add an annotation
   Future<bool> addAnnotation(String documentId, Annotation annotation) async {
+    if (_isSelfHostedMode) {
+      return false;
+    }
+
     if (!isConnected || _connectedServer == null) return false;
 
     try {
@@ -450,7 +607,7 @@ class MobileConnectionService extends ChangeNotifier {
           .post(
             Uri.parse(
                 '${_connectedServer!.url}/api/documents/$documentId/annotations'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', ..._authHeaders},
             body: json.encode(annotation.toJson()),
           )
           .timeout(const Duration(seconds: 10));
@@ -467,13 +624,21 @@ class MobileConnectionService extends ChangeNotifier {
   /// Search documents (with pagination support)
   Future<List<SheetMusicDocument>> search(String query,
       {int page = 0, int pageSize = 20}) async {
+    if (_isSelfHostedMode) {
+      return _documents
+          .where((d) => d.title.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    }
+
     if (!isConnected || _connectedServer == null) return [];
 
     try {
       final response = await http
-          .get(Uri.parse(
-            '${_connectedServer!.url}/api/search?q=${Uri.encodeComponent(query)}&page=$page&pageSize=$pageSize',
-          ))
+          .get(
+              Uri.parse(
+                '${_connectedServer!.url}/api/search?q=${Uri.encodeComponent(query)}&page=$page&pageSize=$pageSize',
+              ),
+              headers: _authHeaders)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -481,7 +646,7 @@ class MobileConnectionService extends ChangeNotifier {
         final resultsData = data['results'] as List<dynamic>;
 
         return resultsData
-            .map((d) => SheetMusicDocument.fromJson(d as Map<String, dynamic>))
+            .map((d) => _parseDocument(d as Map<String, dynamic>))
             .toList();
       } else {
         throw Exception('Server returned status ${response.statusCode}');
@@ -507,12 +672,17 @@ class MobileConnectionService extends ChangeNotifier {
 
     try {
       final response = await http
-          .get(Uri.parse('${_connectedServer!.url}/api/documents/$documentId'))
+          .get(
+            Uri.parse(_isSelfHostedMode
+                ? '$_baseUrl/v1/documents/$documentId'
+                : '${_connectedServer!.url}/api/documents/$documentId'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final docData = json.decode(response.body) as Map<String, dynamic>;
-        final newDoc = SheetMusicDocument.fromJson(docData);
+        final newDoc = _parseDocument(docData);
 
         // Update in list
         final index = _documents.indexWhere((d) => d.id == documentId);
@@ -526,6 +696,41 @@ class MobileConnectionService extends ChangeNotifier {
         print('Error refreshing document: $e');
       }
     }
+  }
+
+  SheetMusicDocument _parseDocument(Map<String, dynamic> json) {
+    if (json.containsKey('createdAt') && json.containsKey('modifiedAt')) {
+      return SheetMusicDocument.fromJson(json);
+    }
+
+    final metadata = (json['metadata'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
+    final pageCount = (metadata['pageCount'] as num?)?.toInt() ?? 1;
+    final updatedAt = DateTime.tryParse((json['updatedAt'] as String?) ?? '') ??
+        DateTime.now();
+
+    return SheetMusicDocument(
+      id: json['id'] as String,
+      title: (json['title'] as String?) ?? 'Untitled',
+      composer: json['composer'] as String?,
+      arranger: json['arranger'] as String?,
+      createdAt: updatedAt,
+      modifiedAt: updatedAt,
+      sourcePath: null,
+      musicXmlPath: '',
+      tags: const <String>[],
+      metadata: DocumentMetadata(
+        pageCount: pageCount,
+        timeSignature: metadata['timeSignature'] as String?,
+        keySignature: metadata['keySignature'] as String?,
+        tempo: (metadata['tempo'] as num?)?.toInt(),
+        instruments: (metadata['instruments'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[],
+        measureCount: (metadata['measureCount'] as num?)?.toInt(),
+      ),
+    );
   }
 
   /// Send ping to keep connection alive

@@ -70,7 +70,18 @@ class SheetMusicReaderApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NoteEditingService()),
         // Mobile services
         ChangeNotifierProvider(create: (_) => ServerDiscoveryService()),
-        ChangeNotifierProvider(create: (_) => MobileConnectionService()),
+        ChangeNotifierProxyProvider<SettingsService, MobileConnectionService>(
+          create: (context) {
+            final service = MobileConnectionService();
+            service.updateSettingsService(context.read<SettingsService>());
+            return service;
+          },
+          update: (context, settings, previous) {
+            final service = previous ?? MobileConnectionService();
+            service.updateSettingsService(settings);
+            return service;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => MobileOfflineStorageService()),
         // Desktop server service
         ChangeNotifierProxyProvider<LibraryService, DesktopServerService>(
