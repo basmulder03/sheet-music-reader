@@ -72,7 +72,8 @@ class ServerStatus extends StatelessWidget {
                     const SizedBox(height: 8),
                     _ConnectionInfoRow(
                       label: 'Full URL',
-                      value: 'http://${serverService.serverAddress}:${serverService.port}',
+                      value:
+                          'http://${serverService.serverAddress}:${serverService.port}',
                       copyable: true,
                     ),
                   ],
@@ -91,21 +92,26 @@ class ServerStatus extends StatelessWidget {
                       children: [
                         Text(
                           'Connected Devices',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
+                            color:
+                                Theme.of(context).colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${serverService.connectedClients}',
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -123,13 +129,20 @@ class ServerStatus extends StatelessWidget {
                               Icon(
                                 Icons.phone_android,
                                 size: 48,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'No devices connected',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                     ),
                               ),
                             ],
@@ -145,10 +158,14 @@ class ServerStatus extends StatelessWidget {
                         itemBuilder: (context, index) {
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
                               child: Icon(
                                 Icons.phone_android,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onPrimaryContainer,
                               ),
                             ),
                             title: Text('Device ${index + 1}'),
@@ -182,31 +199,36 @@ class ServerStatus extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'How to Connect',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     _InstructionStep(
                       number: 1,
-                      text: 'Open the Sheet Music Reader app on your mobile device',
+                      text:
+                          'Open the Sheet Music Reader app on your mobile device',
                     ),
                     const SizedBox(height: 8),
                     _InstructionStep(
                       number: 2,
-                      text: 'Make sure your mobile device is on the same Wi-Fi network',
+                      text:
+                          'Make sure your mobile device is on the same Wi-Fi network',
                     ),
                     const SizedBox(height: 8),
                     _InstructionStep(
                       number: 3,
-                      text: 'The app should automatically discover this desktop server',
+                      text:
+                          'The app should automatically discover this desktop server',
                     ),
                     const SizedBox(height: 8),
                     _InstructionStep(
                       number: 4,
-                      text: 'If not found, manually enter: ${serverService.serverAddress}:${serverService.port}',
+                      text:
+                          'If not found, open Advanced troubleshooting on mobile and enter ${serverService.serverAddress}:${serverService.port}',
                     ),
                   ],
                 ),

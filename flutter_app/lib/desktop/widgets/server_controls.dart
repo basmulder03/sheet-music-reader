@@ -20,7 +20,9 @@ class ServerControls extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      serverService.isRunning ? Icons.cloud_done : Icons.cloud_off,
+                      serverService.isRunning
+                          ? Icons.cloud_done
+                          : Icons.cloud_off,
                       color: serverService.isRunning
                           ? Colors.green
                           : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -39,8 +41,9 @@ class ServerControls extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (serverService.isRunning) ...[
                   _InfoRow(
-                    label: 'Address',
-                    value: '${serverService.serverAddress}:${serverService.port}',
+                    label: 'Advanced Address',
+                    value:
+                        '${serverService.serverAddress}:${serverService.port}',
                     icon: Icons.network_wifi,
                   ),
                   const SizedBox(height: 8),
@@ -69,7 +72,8 @@ class ServerControls extends StatelessWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Failed to stop server: $e'),
-                                    backgroundColor: Theme.of(context).colorScheme.error,
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.error,
                                   ),
                                 );
                               }
@@ -78,7 +82,8 @@ class ServerControls extends StatelessWidget {
                           icon: const Icon(Icons.stop),
                           label: const Text('Stop Server'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Theme.of(context).colorScheme.error,
+                            foregroundColor:
+                                Theme.of(context).colorScheme.error,
                           ),
                         ),
                       ),
@@ -113,7 +118,8 @@ class ServerControls extends StatelessWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Failed to start server: $e'),
-                                    backgroundColor: Theme.of(context).colorScheme.error,
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.error,
                                   ),
                                 );
                               }
@@ -153,7 +159,9 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         isRunning ? 'Running' : 'Stopped',
         style: TextStyle(
-          color: isRunning ? Colors.green : Theme.of(context).colorScheme.onSurfaceVariant,
+          color: isRunning
+              ? Colors.green
+              : Theme.of(context).colorScheme.onSurfaceVariant,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),

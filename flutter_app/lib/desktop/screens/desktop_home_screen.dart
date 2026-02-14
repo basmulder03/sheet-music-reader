@@ -157,7 +157,8 @@ class _LibraryViewState extends State<_LibraryView> {
                     controller: _searchController,
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: 'Search by title, composer, arranger, or tags...',
+                      hintText:
+                          'Search by title, composer, arranger, or tags...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -236,7 +237,10 @@ class _LibraryViewState extends State<_LibraryView> {
                             ? Icons.search_off
                             : Icons.library_music_outlined,
                         size: 64,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.5),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -266,7 +270,7 @@ class _LibraryViewState extends State<_LibraryView> {
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
-                itemCount: displayDocuments.length + 
+                itemCount: displayDocuments.length +
                     (library.isLoadingMore && _searchQuery.isEmpty ? 1 : 0),
                 itemBuilder: (context, index) {
                   // Show loading indicator at the end (only when not searching)
@@ -375,7 +379,8 @@ class _ImportView extends StatelessWidget {
                 const SizedBox(height: 24),
                 Text(
                   importService.currentFileName ?? 'Processing...',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 if (importService.importStatus != null)
@@ -433,13 +438,15 @@ class _ImportView extends StatelessWidget {
                 icon: const Icon(Icons.folder_open),
                 label: const Text('Select Files'),
               ),
-              if (importService.importStatus != null && !importService.isImporting) ...[
+              if (importService.importStatus != null &&
+                  !importService.isImporting) ...[
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(16),
                   margin: const EdgeInsets.symmetric(horizontal: 48),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -454,7 +461,8 @@ class _ImportView extends StatelessWidget {
                         child: Text(
                           importService.importStatus!,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -541,7 +549,11 @@ class _SettingsView extends StatelessWidget {
           title: const Text('Server Settings'),
           subtitle: Consumer<SettingsService>(
             builder: (context, settings, _) {
-              return Text('Port ${settings.serverPort}');
+              return Text(
+                settings.enableMdns
+                    ? 'Automatic discovery enabled'
+                    : 'Automatic discovery disabled',
+              );
             },
           ),
           trailing: const Icon(Icons.chevron_right),
