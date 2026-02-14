@@ -16,6 +16,9 @@ features/
 ├── mobile_sync.feature              # Mobile/desktop synchronization
 ├── annotations.feature              # Annotation features
 ├── performance.feature              # Performance requirements
+├── RENDERING_LAYOUT_TODOS.md        # Viewer layout implementation backlog
+├── ANNOTATION_TODOS.md              # Cross-device annotation backlog
+├── METRONOME_TUNER_TODOS.md         # Practice tools backlog
 └── step_definitions/
     ├── test_helpers.dart           # Shared test utilities
     ├── library_steps.dart          # Library step implementations

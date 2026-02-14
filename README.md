@@ -56,6 +56,8 @@ The project now includes an early standalone sync backend service:
 
 This backend is intentionally decoupled from Flutter UI code so it can be split into a separate repository later without major rewrites.
 
+Release planning and cross-feature sequencing is tracked in `docs/RELEASE_PHASES.md`.
+
 ## Technology Stack
 
 ### Frontend (Desktop & Mobile)

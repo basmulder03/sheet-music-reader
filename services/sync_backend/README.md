@@ -72,3 +72,9 @@ The service is designed for Unraid compatibility:
 - single exposed port
 
 Planned next step: add an Unraid template XML and publish image tags for `linux/amd64` and `linux/arm64`.
+
+## Optional Admin UI Prep
+
+Backend-side TODOs for an optional admin management UI are tracked in:
+
+- `services/sync_backend/ADMIN_UI_TODOS.md`
