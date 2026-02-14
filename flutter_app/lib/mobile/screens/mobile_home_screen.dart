@@ -93,19 +93,53 @@ class _LibraryViewState extends State<_LibraryView> {
   String _searchQuery = '';
   List<SheetMusicDocument> _searchResults = [];
   bool _isSearchLoading = false;
+  List<SheetMusicDocument> _offlineDocuments = [];
+  Set<String> _offlineDocumentIds = <String>{};
+  bool _isLoadingOfflineDocuments = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context
+          .read<MobileOfflineStorageService>()
+          .addListener(_onOfflineStorageChanged);
+      _loadOfflineDocuments();
+    });
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
+    context
+        .read<MobileOfflineStorageService>()
+        .removeListener(_onOfflineStorageChanged);
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onOfflineStorageChanged() {
+    _loadOfflineDocuments();
+  }
+
+  Future<void> _loadOfflineDocuments() async {
+    setState(() {
+      _isLoadingOfflineDocuments = true;
+    });
+
+    final offlineStorage = context.read<MobileOfflineStorageService>();
+    final documents = await offlineStorage.getOfflineDocuments();
+    final ids = documents.map((d) => d.id).toSet();
+
+    if (!mounted) return;
+    setState(() {
+      _offlineDocuments = documents;
+      _offlineDocumentIds = ids;
+      _isLoadingOfflineDocuments = false;
+    });
   }
 
   void _onScroll() {
@@ -125,6 +159,8 @@ class _LibraryViewState extends State<_LibraryView> {
     final connectionService = context.read<MobileConnectionService>();
     if (connectionService.isConnected) {
       await connectionService.syncDocuments();
+    } else {
+      await _loadOfflineDocuments();
     }
   }
 
@@ -163,8 +199,8 @@ class _LibraryViewState extends State<_LibraryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<MobileConnectionService>(
-      builder: (context, connectionService, _) {
+    return Consumer2<MobileConnectionService, MobileOfflineStorageService>(
+      builder: (context, connectionService, _, __) {
         return RefreshIndicator(
           onRefresh: _onRefresh,
           child: CustomScrollView(
@@ -258,7 +294,9 @@ class _LibraryViewState extends State<_LibraryView> {
                   ],
                 ],
               ),
-              if (!connectionService.isConnected)
+              if (!connectionService.isConnected &&
+                  !_isLoadingOfflineDocuments &&
+                  _offlineDocuments.isEmpty)
                 SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -337,9 +375,37 @@ class _LibraryViewState extends State<_LibraryView> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final doc = _searchResults[index];
-                        return _DocumentListTile(document: doc);
+                        return _DocumentListTile(
+                          document: doc,
+                          isOfflineAvailable:
+                              _offlineDocumentIds.contains(doc.id),
+                        );
                       },
                       childCount: _searchResults.length,
+                    ),
+                  ),
+                )
+              else if (!connectionService.isConnected &&
+                  _isLoadingOfflineDocuments)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (!connectionService.isConnected &&
+                  _offlineDocuments.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final doc = _offlineDocuments[index];
+                        return _DocumentListTile(
+                          document: doc,
+                          isOfflineAvailable: true,
+                        );
+                      },
+                      childCount: _offlineDocuments.length,
                     ),
                   ),
                 )
@@ -389,7 +455,11 @@ class _LibraryViewState extends State<_LibraryView> {
                         }
 
                         final doc = connectionService.documents[index];
-                        return _DocumentListTile(document: doc);
+                        return _DocumentListTile(
+                          document: doc,
+                          isOfflineAvailable:
+                              _offlineDocumentIds.contains(doc.id),
+                        );
                       },
                       childCount: connectionService.documents.length +
                           (connectionService.isLoadingMore ? 1 : 0),
@@ -406,8 +476,12 @@ class _LibraryViewState extends State<_LibraryView> {
 
 class _DocumentListTile extends StatelessWidget {
   final SheetMusicDocument document;
+  final bool isOfflineAvailable;
 
-  const _DocumentListTile({required this.document});
+  const _DocumentListTile({
+    required this.document,
+    this.isOfflineAvailable = false,
+  });
 
   void _showOptionsMenu(BuildContext context) {
     showModalBottomSheet(
@@ -608,6 +682,12 @@ class _DocumentListTile extends StatelessWidget {
       );
     }
 
+    await offlineStorage.upsertOfflineDocument(
+      document,
+      sourceType: sourceFile?.sourceType,
+      sourceFileName: sourceFile?.fileName,
+    );
+
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -642,7 +722,7 @@ class _DocumentListTile extends StatelessWidget {
           ),
         ),
         title: Text(
-          document.title,
+          isOfflineAvailable ? '${document.title}  (offline)' : document.title,
           style: const TextStyle(fontWeight: FontWeight.bold),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
