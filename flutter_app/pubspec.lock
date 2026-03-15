@@ -165,34 +165,34 @@ packages:
     dependency: "direct main"
     description:
       name: camera
-      sha256: dfa8fc5a1adaeb95e7a54d86a5bd56f4bb0e035515354c8ac6d262e35cec2ec8
+      sha256: "46f391e9bbdaa373d15e296abc5de8bfb0dd0d0c7487592dd8f20e8ef980429f"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.6"
-  camera_android:
+    version: "0.12.0"
+  camera_android_camerax:
     dependency: transitive
     description:
-      name: camera_android
-      sha256: "007c57cdcace4751014071e3d42f2eb8a64a519254abed35b714223d81d66234"
+      name: camera_android_camerax
+      sha256: c0be4298e3888ba6cf5c1fb1ae1203f08dcbb14d4f545ce5262f473cf8c33e28
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.10"
+    version: "0.7.1"
   camera_avfoundation:
     dependency: transitive
     description:
       name: camera_avfoundation
-      sha256: ca36181194f429eef3b09de3c96280f2400693f9735025f90d1f4a27465fdd72
+      sha256: "90e4cc3fde331581a3b2d35d83be41dbb7393af0ab857eb27b732174289cb96d"
       url: "https://pub.dev"
     source: hosted
-    version: "0.9.19"
+    version: "0.10.1"
   camera_platform_interface:
     dependency: transitive
     description:
       name: camera_platform_interface
-      sha256: "2f757024a48696ff4814a789b0bd90f5660c0fb25f393ab4564fb483327930e2"
+      sha256: "98cfc9357e04bad617671b4c1f78a597f25f08003089dd94050709ae54effc63"
       url: "https://pub.dev"
     source: hosted
-    version: "2.10.0"
+    version: "2.12.0"
   camera_web:
     dependency: transitive
     description:
@@ -603,10 +603,10 @@ packages:
     dependency: "direct main"
     description:
       name: intl
-      sha256: "3bc132a9dbce73a7e4a21a17d06e1878839ffbf975568bc875c60537824b0c4d"
+      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
       url: "https://pub.dev"
     source: hosted
-    version: "0.18.1"
+    version: "0.20.2"
   io:
     dependency: transitive
     description:
@@ -1302,4 +1302,4 @@ packages:
     version: "3.1.3"
 sdks:
   dart: ">=3.10.0 <4.0.0"
-  flutter: ">=3.27.0"
+  flutter: ">=3.35.0"
